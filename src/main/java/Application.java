@@ -3,13 +3,28 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+
+import org.neo4j.graphdb.Transaction;
 import service.UserService;
 import model.User;
 import util.PasswordUtil;
 import config.SecurityConfig;
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
+import config.NodeIdManager;
+
 
 public class Application {
     private static final UserService userService = new UserService();
+    private static GraphDatabaseService graphDb;
+    private static final String DB_PATH = "target/neo4j-hello-db";
+    static {
+        graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( DB_PATH );
+    }
+
+    static{NodeIdManager.loadNodeId();} 
+    static int nodeid = NodeIdManager.getNodeId();
     
     public static void main(String[] args) {
         Javalin app = Javalin.create(config -> {
@@ -135,6 +150,50 @@ public class Application {
                     "Neo.ClientError.Security.InvalidPassword"
                 ));
             }
+        });
+        
+        // 列出所有属性键API
+        app.get("/db/data/propertykeys", ctx -> {
+        
+        });
+        
+        // 创建节点API
+        app.post("/db/data/node", ctx -> {
+            // 创建节点并获取其ID
+            try (Transaction tx = graphDb.beginTx()) {
+                nodeid++;
+                NodeIdManager.saveNodeId(nodeid);
+                Node node = graphDb.createNode();
+                node.setProperty("nodeid", nodeid);
+                tx.success();
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeid;
+            response.put("extensions", new HashMap<>());
+            response.put("labels", baseUrl + "/labels");
+            response.put("outgoing_relationships", baseUrl + "/relationships/out");
+            response.put("all_typed_relationships", baseUrl + "/relationships/all/{-list|&|types}");
+            response.put("traverse", baseUrl + "/traverse/{returnType}");
+            response.put("self", baseUrl);
+            response.put("property", baseUrl + "/properties/{key}");
+            response.put("properties", baseUrl + "/properties");
+            response.put("outgoing_typed_relationships", baseUrl + "/relationships/out/{-list|&|types}");
+            response.put("incoming_relationships", baseUrl + "/relationships/in");
+            response.put("create_relationship", baseUrl + "/relationships");
+            response.put("paged_traverse", baseUrl + "/paged/traverse/{returnType}{?pageSize,leaseTime}");
+            response.put("all_relationships", baseUrl + "/relationships/all");
+            response.put("incoming_typed_relationships", baseUrl + "/relationships/in/{-list|&|types}");
+
+            // 添加元数据
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("id", nodeid);
+            metadata.put("labels", new HashMap<>()); // 可以根据需要添加标签
+            response.put("metadata", metadata);
+            response.put("data", new HashMap<>()); // 可以根据需要添加数据
+            // 设置响应状态和位置头
+            ctx.status(201).json(response)
+               .header("Location", "http://localhost:" + ctx.port() + "/db/data/node/" + nodeid);
         });
     }
     

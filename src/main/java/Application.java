@@ -156,20 +156,40 @@ public class Application {
         app.get("/db/data/propertykeys", ctx -> {
         
         });
-        
+
         // 创建节点API
         app.post("/db/data/node", ctx -> {
-            // 创建节点并获取其ID
+            // 获取请求体中的属性
+            // 判断请求体是否为空
+            Map<String, Object> properties;
+            if (ctx.body().isEmpty()) {
+                properties = new HashMap<>();
+            }
+            else {
+                properties = ctx.bodyAsClass(Map.class);
+            }
+
+            // 创建节点并设置属性
             try (Transaction tx = graphDb.beginTx()) {
                 nodeid++;
                 NodeIdManager.saveNodeId(nodeid);
                 Node node = graphDb.createNode();
+                
+                // 设置固定的nodeid属性
                 node.setProperty("nodeid", nodeid);
+                
+                // 设置请求中的所有属性
+                for (Map.Entry<String, Object> entry : properties.entrySet()) {
+                    node.setProperty(entry.getKey(), entry.getValue());
+                }
+                
                 tx.success();
             }
 
             Map<String, Object> response = new HashMap<>();
             String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeid;
+            
+            // 构建响应体
             response.put("extensions", new HashMap<>());
             response.put("labels", baseUrl + "/labels");
             response.put("outgoing_relationships", baseUrl + "/relationships/out");
@@ -188,12 +208,16 @@ public class Application {
             // 添加元数据
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("id", nodeid);
-            metadata.put("labels", new HashMap<>()); // 可以根据需要添加标签
+            metadata.put("labels", Collections.emptyList());
             response.put("metadata", metadata);
-            response.put("data", new HashMap<>()); // 可以根据需要添加数据
+            
+            // 添加节点属性数据
+            response.put("data", properties);
+
             // 设置响应状态和位置头
-            ctx.status(201).json(response)
-               .header("Location", "http://localhost:" + ctx.port() + "/db/data/node/" + nodeid);
+            ctx.status(201)
+            .header("Location", baseUrl)
+            .json(response);
         });
     }
     
@@ -227,4 +251,4 @@ public class Application {
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
     }
-} 
+}

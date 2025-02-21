@@ -1,18 +1,24 @@
 import io.javalin.Javalin;
+
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 
 import org.neo4j.graphdb.Transaction;
 import service.UserService;
 import model.User;
 import util.PasswordUtil;
 import config.SecurityConfig;
+
+import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import config.NodeIdManager;
+import org.neo4j.graphdb.schema.Schema;
 
 
 public class Application {
@@ -27,6 +33,17 @@ public class Application {
     static int nodeid = NodeIdManager.getNodeId();
     
     public static void main(String[] args) {
+
+        // 为 CrossNode 标签的 id 属性创建唯一约束
+        /* 
+        try (Transaction tx = graphDb.beginTx()) {
+            Schema schema = graphDb.schema();
+            schema.constraintFor(DynamicLabel.label("CrossNode"))
+                    .assertPropertyIsUnique("nodeid")
+                    .create();
+            tx.success();
+        }*/
+
         Javalin app = Javalin.create(config -> {
             config.accessManager((handler, ctx, permittedRoles) -> {
                 // 如果认证被禁用，直接允许访问
@@ -173,7 +190,7 @@ public class Application {
             try (Transaction tx = graphDb.beginTx()) {
                 nodeid++;
                 NodeIdManager.saveNodeId(nodeid);
-                Node node = graphDb.createNode();
+                Node node = graphDb.createNode(DynamicLabel.label("CrossNode"));
                 
                 // 设置固定的nodeid属性
                 node.setProperty("nodeid", nodeid);
@@ -218,6 +235,65 @@ public class Application {
             ctx.status(201)
             .header("Location", baseUrl)
             .json(response);
+        });
+
+        // 获取节点API(存在和不存在的)
+        app.get("/db/data/node/{id}", ctx -> {
+            int nodeId = Integer.parseInt(ctx.pathParam("id"));
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                // 通过nodeid属性查找节点
+                Node node = graphDb.findNode(DynamicLabel.label("CrossNode"), "nodeid", nodeId);
+                
+                if (node == null) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                    return;
+                }
+
+                Map<String, Object> response = new HashMap<>();
+                String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeId;
+
+                // 构建响应体
+                response.put("extensions", new HashMap<>());
+                response.put("labels", baseUrl + "/labels");
+                response.put("outgoing_relationships", baseUrl + "/relationships/out");
+                response.put("all_typed_relationships", baseUrl + "/relationships/all/{-list|&|types}");
+                response.put("traverse", baseUrl + "/traverse/{returnType}");
+                response.put("self", baseUrl);
+                response.put("property", baseUrl + "/properties/{key}");
+                response.put("properties", baseUrl + "/properties");
+                response.put("outgoing_typed_relationships", baseUrl + "/relationships/out/{-list|&|types}");
+                response.put("incoming_relationships", baseUrl + "/relationships/in");
+                response.put("create_relationship", baseUrl + "/relationships");
+                response.put("paged_traverse", baseUrl + "/paged/traverse/{returnType}{?pageSize,leaseTime}");
+                response.put("all_relationships", baseUrl + "/relationships/all");
+                response.put("incoming_typed_relationships", baseUrl + "/relationships/in/{-list|&|types}");
+
+                // 添加元数据
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("id", nodeId);
+                metadata.put("labels", Collections.emptyList());
+                response.put("metadata", metadata);
+
+                // 添加节点数据
+                Map<String, Object> data = new HashMap<>();
+                for (String key : node.getPropertyKeys()) {
+                    if (!key.equals("nodeid")) { // 排除nodeid属性
+                        data.put(key, node.getProperty(key));
+                    }
+                }
+                response.put("data", data);
+
+                ctx.status(200).json(response);
+                tx.success();
+            }
         });
     }
     

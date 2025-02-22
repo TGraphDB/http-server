@@ -1,6 +1,7 @@
 import io.javalin.Javalin;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
@@ -271,6 +272,47 @@ public class Application {
                     ctx.status(404).json(errorResponse);
                 }
 
+                tx.success();
+            }
+        });
+
+        // 删除节点API
+        app.delete("/db/data/node/{id}", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    
+                    // 检查节点是否有关系
+                    if (node.hasRelationship()) {
+                        // 如果有关系，返回409错误
+                        Map<String, Object> errorResponse = new HashMap<>();
+                        List<Map<String, String>> errors = new ArrayList<>();
+                        Map<String, String> error = new HashMap<>();
+                        error.put("message", "The node with id " + nodeId + " cannot be deleted. Check that the node is orphaned before deletion.");
+                        error.put("code", "Neo.ClientError.Schema.ConstraintViolation");
+                        errors.add(error);
+                        errorResponse.put("errors", errors);
+                        
+                        ctx.status(409).json(errorResponse);
+                        return;
+                    }
+                    
+                    // 如果没有关系，删除节点
+                    node.delete();
+                    ctx.status(204);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
                 tx.success();
             }
         });

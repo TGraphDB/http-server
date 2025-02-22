@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonElement;
 import com.google.gson.Gson;
 
@@ -502,6 +503,114 @@ public class Application {
                 tx.success();
             }
         });
+
+        // 设置关系上的所有属性 目前仅支持三种类型
+        app.put("/db/data/relationship/{id}/properties", ctx -> {
+            long relationshipId = Long.parseLong(ctx.pathParam("id"));
+            JsonObject properties = new Gson().fromJson(ctx.body(), JsonObject.class);
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                
+                // 移除所有现有属性
+                for (String key : relationship.getPropertyKeys()) {
+                    relationship.removeProperty(key);
+                }
+                
+                // 设置新属性
+                for (Map.Entry<String, JsonElement> entry : properties.entrySet()) {
+                    JsonElement value = entry.getValue();
+                    if (value.isJsonPrimitive()) {
+                        JsonPrimitive primitive = value.getAsJsonPrimitive();
+                        if (primitive.isString()) {
+                            relationship.setProperty(entry.getKey(), primitive.getAsString());
+                        } else if (primitive.isNumber()) {
+                            relationship.setProperty(entry.getKey(), primitive.getAsNumber());
+                        } else if (primitive.isBoolean()) {
+                            relationship.setProperty(entry.getKey(), primitive.getAsBoolean());
+                        }
+                    }
+                }
+                
+                tx.success();
+                ctx.status(204);
+            }
+        });
+
+        // 获取关系上的单个属性
+        app.get("/db/data/relationship/{id}/properties/{key}", ctx -> {
+            long relationshipId = Long.parseLong(ctx.pathParam("id"));
+            String propertyKey = ctx.pathParam("key");
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                if (relationship.hasProperty(propertyKey)) {
+                    Object value = relationship.getProperty(propertyKey);
+                    tx.success();
+                    ctx.status(200).json(value);
+                } 
+            }
+        });
+
+        // 设置关系上的单个属性
+        app.put("/db/data/relationship/{id}/properties/{key}", ctx -> {
+            long relationshipId = Long.parseLong(ctx.pathParam("id"));
+            String propertyKey = ctx.pathParam("key");
+            JsonElement value = new Gson().fromJson(ctx.body(), JsonElement.class);
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                if (value.isJsonPrimitive()) {
+                    JsonPrimitive primitive = value.getAsJsonPrimitive();
+                    if (primitive.isString()) {
+                        relationship.setProperty(propertyKey, primitive.getAsString());
+                    } else if (primitive.isNumber()) {
+                        relationship.setProperty(propertyKey, primitive.getAsNumber());
+                    } else if (primitive.isBoolean()) {
+                        relationship.setProperty(propertyKey, primitive.getAsBoolean());
+                    }
+                }
+                
+                tx.success();
+                ctx.status(204);
+            }
+        });
+
+        // 获取所有关系
+        app.get("/db/data/node/{id}/relationships/all", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            String baseUrl = "http://localhost:" + ctx.port();
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                    Node node = graphDb.getNodeById(nodeId);
+                    List<Map<String, Object>> relationships = new ArrayList<>();
+                    
+                    for (Relationship rel : node.getRelationships()) {
+                        Map<String, Object> relData = new HashMap<>();
+                        
+                        // 构建基本信息
+                        relData.put("start", baseUrl + "/db/data/node/" + rel.getStartNode().getId());
+                        relData.put("data", getRelationshipProperties(rel));
+                        relData.put("self", baseUrl + "/db/data/relationship/" + rel.getId());
+                        relData.put("property", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties/{key}");
+                        relData.put("properties", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties");
+                        relData.put("type", rel.getType().name());
+                        relData.put("extensions", new HashMap<>());
+                        relData.put("end", baseUrl + "/db/data/node/" + rel.getEndNode().getId());
+                        
+                        // 添加元数据
+                        Map<String, Object> metadata = new HashMap<>();
+                        metadata.put("id", rel.getId());
+                        metadata.put("type", rel.getType().name());
+                        relData.put("metadata", metadata);
+                        
+                        relationships.add(relData);
+                    }
+                    
+                    tx.success();
+                    ctx.status(200).json(relationships);
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {
@@ -553,5 +662,14 @@ public class Application {
     private static long extractNodeIdFromUrl(String url) {
         String[] parts = url.split("/");
         return Long.parseLong(parts[parts.length - 1]);
+    }
+
+    // 辅助方法：获取关系的所有属性
+    private static Map<String, Object> getRelationshipProperties(Relationship relationship) {
+        Map<String, Object> properties = new HashMap<>();
+        for (String key : relationship.getPropertyKeys()) {
+            properties.put(key, relationship.getProperty(key));
+        }
+        return properties;
     }
 }

@@ -473,7 +473,7 @@ public class Application {
             }
         });
 
-        // 获取关系属性API
+        // 获取关系上所有属性API
         app.get("/db/data/relationship/{id}/properties", ctx -> {
             long relationshipId = Long.parseLong(ctx.pathParam("id"));
             

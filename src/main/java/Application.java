@@ -449,6 +449,59 @@ public class Application {
                 }
             }
         });
+
+        // 删除关系API
+        app.delete("/db/data/relationship/{id}", ctx -> {
+            long relationshipId = Long.parseLong(ctx.pathParam("id"));
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                    relationship.delete();
+                    ctx.status(204);
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+                tx.success();
+            }
+        });
+
+        // 获取关系属性API
+        app.get("/db/data/relationship/{id}/properties", ctx -> {
+            long relationshipId = Long.parseLong(ctx.pathParam("id"));
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                    
+                    // 构建属性Map
+                    Map<String, Object> properties = new HashMap<>();
+                    for (String key : relationship.getPropertyKeys()) {
+                        properties.put(key, relationship.getProperty(key));
+                    }
+                    
+                    ctx.status(200).json(properties);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+                tx.success();
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

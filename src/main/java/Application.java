@@ -17,6 +17,7 @@ import config.SecurityConfig;
 
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.NotFoundException;
 
 
@@ -313,6 +314,56 @@ public class Application {
                     errorResponse.put("errors", errors);
                     ctx.status(404).json(errorResponse);
                 }
+                tx.success();
+            }
+        });
+
+        // 通过ID获取关系API
+        app.get("/db/data/relationship/{id}", ctx -> {
+            long relationshipId = Long.parseLong(ctx.pathParam("id"));
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                    
+                    Map<String, Object> response = new HashMap<>();
+                    String baseUrl = "http://localhost:" + ctx.port();
+                    
+                    // 构建响应体
+                    response.put("extensions", new HashMap<>());
+                    response.put("start", baseUrl + "/db/data/node/" + relationship.getStartNode().getId());
+                    response.put("property", baseUrl + "/db/data/relationship/" + relationshipId + "/properties/{key}");
+                    response.put("self", baseUrl + "/db/data/relationship/" + relationshipId);
+                    response.put("properties", baseUrl + "/db/data/relationship/" + relationshipId + "/properties");
+                    response.put("type", relationship.getType().name());
+                    response.put("end", baseUrl + "/db/data/node/" + relationship.getEndNode().getId());
+                    
+                    // 添加元数据
+                    Map<String, Object> metadata = new HashMap<>();
+                    metadata.put("id", relationshipId);
+                    metadata.put("type", relationship.getType().name());
+                    response.put("metadata", metadata);
+                    
+                    // 添加关系属性数据
+                    Map<String, Object> data = new HashMap<>();
+                    for (String key : relationship.getPropertyKeys()) {
+                        data.put(key, relationship.getProperty(key));
+                    }
+                    response.put("data", data);
+                    
+                    ctx.status(200).json(response);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+                
                 tx.success();
             }
         });

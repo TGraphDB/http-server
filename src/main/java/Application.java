@@ -5,7 +5,9 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 import com.google.gson.JsonObject;
@@ -14,6 +16,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.Gson;
 
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.tooling.GlobalGraphOperations; // 着重了解一下
+
 import service.UserService;
 import tgraph.Tgraph;
 import model.User;
@@ -758,6 +762,25 @@ public class Application {
                     errorResponse.put("errors", errors);
                     ctx.status(404).json(errorResponse);
                 }
+            }
+        });
+
+        // 获取关系类型
+        app.get("/db/data/relationship/types", ctx -> {
+            try (Transaction tx = graphDb.beginTx()) {
+                // 使用 GlobalGraphOperations 获取所有关系类型
+                GlobalGraphOperations ggo = GlobalGraphOperations.at(graphDb);
+                Set<String> typeSet = new HashSet<>();
+                for (RelationshipType type : ggo.getAllRelationshipTypes()) {
+                    typeSet.add(type.name());
+                }
+                
+                // 转换为列表并排序（可选）
+                List<String> types = new ArrayList<>(typeSet);
+                Collections.sort(types);
+                
+                tx.success();
+                ctx.status(200).json(types);
             }
         });
     }

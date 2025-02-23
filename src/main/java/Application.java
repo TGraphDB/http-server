@@ -20,6 +20,7 @@ import model.User;
 import util.PasswordUtil;
 import config.SecurityConfig;
 
+import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
@@ -609,6 +610,98 @@ public class Application {
                     
                     tx.success();
                     ctx.status(200).json(relationships);
+            }
+        });
+
+        // 获取传入的关系
+        app.get("/db/data/node/{id}/relationships/in", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            String baseUrl = "http://localhost:" + ctx.port();
+
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    List<Map<String, Object>> relationships = new ArrayList<>();
+
+                    // 遍历传入(in)关系
+                    for (Relationship rel : node.getRelationships(Direction.INCOMING)) {
+                        Map<String, Object> relData = new HashMap<>();
+                        relData.put("start", baseUrl + "/db/data/node/" + rel.getStartNode().getId());
+                        relData.put("data", getRelationshipProperties(rel));
+                        relData.put("self", baseUrl + "/db/data/relationship/" + rel.getId());
+                        relData.put("property", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties/{key}");
+                        relData.put("properties", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties");
+                        relData.put("type", rel.getType().name());
+                        relData.put("extensions", new HashMap<>());
+                        relData.put("end", baseUrl + "/db/data/node/" + rel.getEndNode().getId());
+
+                        Map<String, Object> metadata = new HashMap<>();
+                        metadata.put("id", rel.getId());
+                        metadata.put("type", rel.getType().name());
+                        relData.put("metadata", metadata);
+
+                        relationships.add(relData);
+                    }
+
+                    tx.success();
+                    ctx.status(200).json(relationships);
+
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
+
+        // 获取传出的关系
+        app.get("/db/data/node/{id}/relationships/out", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            String baseUrl = "http://localhost:" + ctx.port();
+
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    List<Map<String, Object>> relationships = new ArrayList<>();
+
+                    // 遍历传出(out)关系
+                    for (Relationship rel : node.getRelationships(Direction.OUTGOING)) {
+                        Map<String, Object> relData = new HashMap<>();
+                        relData.put("start", baseUrl + "/db/data/node/" + rel.getStartNode().getId());
+                        relData.put("data", getRelationshipProperties(rel));
+                        relData.put("self", baseUrl + "/db/data/relationship/" + rel.getId());
+                        relData.put("property", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties/{key}");
+                        relData.put("properties", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties");
+                        relData.put("type", rel.getType().name());
+                        relData.put("extensions", new HashMap<>());
+                        relData.put("end", baseUrl + "/db/data/node/" + rel.getEndNode().getId());
+
+                        Map<String, Object> metadata = new HashMap<>();
+                        metadata.put("id", rel.getId());
+                        metadata.put("type", rel.getType().name());
+                        relData.put("metadata", metadata);
+
+                        relationships.add(relData);
+                    }
+
+                    tx.success();
+                    ctx.status(200).json(relationships);
+
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
             }
         });
     }

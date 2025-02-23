@@ -577,7 +577,7 @@ public class Application {
             }
         });
 
-        // 获取所有关系
+        // 获取所有关系（有关系和没有关系的）
         app.get("/db/data/node/{id}/relationships/all", ctx -> {
             long nodeId = Long.parseLong(ctx.pathParam("id"));
             String baseUrl = "http://localhost:" + ctx.port();

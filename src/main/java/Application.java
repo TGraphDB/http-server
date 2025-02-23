@@ -704,6 +704,62 @@ public class Application {
                 }
             }
         });
+
+        // 获取指定类型的关系 tx.success()是在try里，没有包含在整个transaction里
+        app.get("/db/data/node/{id}/relationships/all/{typeString}", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            // 例如 "LIKES&HATES"
+            String typesParam = ctx.pathParam("typeString"); 
+            String baseUrl = "http://localhost:" + ctx.port();
+        
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    List<Map<String, Object>> relationships = new ArrayList<>();
+        
+                    // 将 typesParam 按 '&' 切分并转换成 RelationshipType[]
+                    String[] typeNames = typesParam.split("&");
+                    RelationshipType[] relationshipTypes = new RelationshipType[typeNames.length];
+                    for (int i = 0; i < typeNames.length; i++) {
+                        relationshipTypes[i] = new DynamicRelationshipType(typeNames[i]);
+                    }
+        
+                    // 仅获取指定类型的关系
+                    for (Relationship rel : node.getRelationships(relationshipTypes)) {
+                        Map<String, Object> relData = new HashMap<>();
+                        relData.put("start", baseUrl + "/db/data/node/" + rel.getStartNode().getId());
+                        relData.put("data", getRelationshipProperties(rel));
+                        relData.put("self", baseUrl + "/db/data/relationship/" + rel.getId());
+                        relData.put("property", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties/{key}");
+                        relData.put("properties", baseUrl + "/db/data/relationship/" + rel.getId() + "/properties");
+                        relData.put("type", rel.getType().name());
+                        relData.put("extensions", new HashMap<>());
+                        relData.put("end", baseUrl + "/db/data/node/" + rel.getEndNode().getId());
+        
+                        // 添加元数据
+                        Map<String, Object> metadata = new HashMap<>();
+                        metadata.put("id", rel.getId());
+                        metadata.put("type", rel.getType().name());
+                        relData.put("metadata", metadata);
+        
+                        relationships.add(relData);
+                    }
+        
+                    tx.success();
+                    ctx.status(200).json(relationships);
+        
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

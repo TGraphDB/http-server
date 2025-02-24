@@ -1017,6 +1017,10 @@ public class Application {
      * - 以上类型的数组
      */
     private static Object convertJsonElementToPropertyValue(JsonElement element) {
+        // 检查 null 值
+        if (element == null || element.isJsonNull()) {
+            throw new IllegalArgumentException("Property values cannot be null");
+        }
         // 处理基本类型
         if (element.isJsonPrimitive()) {
             JsonPrimitive primitive = element.getAsJsonPrimitive();
@@ -1074,6 +1078,11 @@ public class Application {
                 }
             }
         }
-        return null;
+        // 检查嵌套对象
+        if (element.isJsonObject()) {
+            throw new IllegalArgumentException("Nested objects are not supported as property values");
+        }
+        
+        throw new IllegalArgumentException("Unsupported property value type");
     }
 }

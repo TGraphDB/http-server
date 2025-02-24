@@ -1027,6 +1027,23 @@ public class Application {
                 }
             }
         });
+
+        // 从关系中删除所有属性
+        app.delete("/db/data/relationship/{id}/properties", ctx -> {
+            long relationshipId = Long.parseLong(ctx.pathParam("id"));
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                
+                // 移除所有属性
+                for (String key : relationship.getPropertyKeys()) {
+                    relationship.removeProperty(key);
+                }
+                
+                tx.success();
+                ctx.status(204);
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

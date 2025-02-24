@@ -1268,6 +1268,74 @@ public class Application {
                 }
             }
         });
+
+        // 获取具有特定标签的所有节点
+        app.get("/db/data/label/{labelName}/nodes", ctx -> {
+            String labelName = ctx.pathParam("labelName");
+            String baseUrl = "http://localhost:" + ctx.port();
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Label label = DynamicLabel.label(labelName);
+                    List<Map<String, Object>> nodes = new ArrayList<>();
+                    
+                    // 获取所有具有指定标签的节点
+                    GlobalGraphOperations ggo = GlobalGraphOperations.at(graphDb);
+                    for (Node node : ggo.getAllNodesWithLabel(label)) {
+                        Map<String, Object> nodeData = new HashMap<>();
+                        String nodeUrl = baseUrl + "/db/data/node/" + node.getId();
+                        
+                        // 添加基本 URL
+                        nodeData.put("labels", nodeUrl + "/labels");
+                        nodeData.put("outgoing_relationships", nodeUrl + "/relationships/out");
+                        nodeData.put("all_typed_relationships", nodeUrl + "/relationships/all/{-list|&|types}");
+                        nodeData.put("traverse", nodeUrl + "/traverse/{returnType}");
+                        nodeData.put("self", nodeUrl);
+                        nodeData.put("property", nodeUrl + "/properties/{key}");
+                        nodeData.put("properties", nodeUrl + "/properties");
+                        nodeData.put("outgoing_typed_relationships", nodeUrl + "/relationships/out/{-list|&|types}");
+                        nodeData.put("incoming_relationships", nodeUrl + "/relationships/in");
+                        nodeData.put("extensions", new HashMap<>());
+                        nodeData.put("create_relationship", nodeUrl + "/relationships");
+                        nodeData.put("paged_traverse", nodeUrl + "/paged/traverse/{returnType}{?pageSize,leaseTime}");
+                        nodeData.put("all_relationships", nodeUrl + "/relationships/all");
+                        nodeData.put("incoming_typed_relationships", nodeUrl + "/relationships/in/{-list|&|types}");
+                        
+                        // 添加节点属性
+                        Map<String, Object> data = new HashMap<>();
+                        for (String key : node.getPropertyKeys()) {
+                            data.put(key, node.getProperty(key));
+                        }
+                        nodeData.put("data", data);
+                        
+                        // 添加元数据（包括节点ID和标签）
+                        Map<String, Object> metadata = new HashMap<>();
+                        metadata.put("id", node.getId());
+                        List<String> labels = new ArrayList<>();
+                        for (Label l : node.getLabels()) {
+                            labels.add(l.name());
+                        }
+                        metadata.put("labels", labels);
+                        nodeData.put("metadata", metadata);
+                        
+                        nodes.add(nodeData);
+                    }
+                    
+                    tx.success();
+                    ctx.status(200).json(nodes);
+                    
+                } catch (Exception e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Error retrieving nodes with label '" + labelName + "': " + e.getMessage());
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

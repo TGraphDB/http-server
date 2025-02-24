@@ -14,6 +14,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonElement;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.tooling.GlobalGraphOperations; // 着重了解一下
@@ -191,11 +192,6 @@ public class Application {
                     "Neo.ClientError.Security.InvalidPassword"
                 ));
             }
-        });
-        
-        // 列出所有属性键API
-        app.get("/db/data/propertykeys", ctx -> {
-        
         });
 
         // 创建节点API
@@ -812,6 +808,38 @@ public class Application {
                 ctx.status(200).json(types);
             }
         });
+
+        // 在节点上设置单个属性
+        app.put("/db/data/node/{id}/properties/{key}", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            String propertyKey = ctx.pathParam("key");
+            JsonElement value = new Gson().fromJson(ctx.body(), JsonElement.class);
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    
+                    // 使用通用转换方法处理属性值
+                    Object propertyValue = convertJsonElementToPropertyValue(value);
+                    if (propertyValue != null) {
+                        node.setProperty(propertyKey, propertyValue);
+                    }
+                    
+                    tx.success();
+                    ctx.status(204);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {
@@ -872,5 +900,74 @@ public class Application {
             properties.put(key, relationship.getProperty(key));
         }
         return properties;
+    }
+
+    /**
+     * 将JSON元素转换为Neo4j支持的属性值类型
+     * 支持:
+     * - 字符串
+     * - 数字(Long/Double)
+     * - 布尔值
+     * - 以上类型的数组
+     */
+    private static Object convertJsonElementToPropertyValue(JsonElement element) {
+        // 处理基本类型
+        if (element.isJsonPrimitive()) {
+            JsonPrimitive primitive = element.getAsJsonPrimitive();
+            if (primitive.isString()) {
+                return primitive.getAsString();
+            } else if (primitive.isNumber()) {
+                String numStr = primitive.getAsString();
+                return numStr.indexOf('.') == -1 ? 
+                    primitive.getAsLong() : 
+                    primitive.getAsDouble();
+            } else if (primitive.isBoolean()) {
+                return primitive.getAsBoolean();
+            }
+        }
+        
+        // 处理数组类型
+        if (element.isJsonArray()) {
+            JsonArray array = element.getAsJsonArray();
+            if (array.size() > 0) {
+                JsonElement first = array.get(0);
+                if (first.isJsonPrimitive()) {
+                    JsonPrimitive primitive = first.getAsJsonPrimitive();
+                    // 字符串数组
+                    if (primitive.isString()) {
+                        String[] result = new String[array.size()];
+                        for (int i = 0; i < array.size(); i++) {
+                            result[i] = array.get(i).getAsString();
+                        }
+                        return result;
+                    }
+                    // 数字数组
+                    else if (primitive.isNumber()) {
+                        if (primitive.getAsString().indexOf('.') == -1) {
+                            long[] result = new long[array.size()];
+                            for (int i = 0; i < array.size(); i++) {
+                                result[i] = array.get(i).getAsLong();
+                            }
+                            return result;
+                        } else {
+                            double[] result = new double[array.size()];
+                            for (int i = 0; i < array.size(); i++) {
+                                result[i] = array.get(i).getAsDouble();
+                            }
+                            return result;
+                        }
+                    }
+                    // 布尔数组
+                    else if (primitive.isBoolean()) {
+                        boolean[] result = new boolean[array.size()];
+                        for (int i = 0; i < array.size(); i++) {
+                            result[i] = array.get(i).getAsBoolean();
+                        }
+                        return result;
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

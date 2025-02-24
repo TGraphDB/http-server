@@ -21,9 +21,9 @@ import org.neo4j.tooling.GlobalGraphOperations; // 着重了解一下
 
 import service.UserService;
 import tgraph.Tgraph;
-import model.User;
+import service.User;
 import util.PasswordUtil;
-import config.SecurityConfig;
+import service.SecurityConfig;
 
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.DynamicLabel;

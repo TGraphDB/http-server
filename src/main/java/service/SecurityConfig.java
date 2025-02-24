@@ -1,4 +1,4 @@
-package config;
+package service;
 
 public class SecurityConfig {
     private static boolean authEnabled = true;

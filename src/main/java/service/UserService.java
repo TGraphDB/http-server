@@ -3,7 +3,7 @@ package service;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Properties;
-import model.User;
+import service.User;
 import util.PasswordUtil;
 import util.ConfigFileStore;
 

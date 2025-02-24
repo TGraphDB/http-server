@@ -107,6 +107,35 @@ public class Application {
                 }
             });
         }).start(7474);
+
+        // 列出所有属性键API
+        app.get("/db/data/propertykeys", ctx -> {
+            try (Transaction tx = graphDb.beginTx()) {
+                Set<String> propertyKeys = new HashSet<>();
+                GlobalGraphOperations ggo = GlobalGraphOperations.at(graphDb);
+                
+                // 收集节点的属性键
+                for (Node node : ggo.getAllNodes()) {
+                    for (String key : node.getPropertyKeys()) {
+                        propertyKeys.add(key);
+                    }
+                }
+                
+                // 收集关系的属性键
+                for (Relationship rel : ggo.getAllRelationships()) {
+                    for (String key : rel.getPropertyKeys()) {
+                        propertyKeys.add(key);
+                    }
+                }
+                
+                // 转换为列表并排序
+                List<String> keys = new ArrayList<>(propertyKeys);
+                Collections.sort(keys);
+                
+                tx.success();
+                ctx.status(200).json(keys);
+            }
+        });
         
         // 添加数据API
         app.get("/db/data/", ctx -> {

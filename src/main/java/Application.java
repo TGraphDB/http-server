@@ -878,6 +878,36 @@ public class Application {
                 }
             }
         });
+
+        // 获取节点的所有属性
+        app.get("/db/data/node/{id}/properties", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    
+                    // 构建属性Map
+                    Map<String, Object> properties = new HashMap<>();
+                    for (String key : node.getPropertyKeys()) {
+                        properties.put(key, node.getProperty(key));
+                    }
+                    
+                    tx.success();
+                    ctx.status(200).json(properties);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

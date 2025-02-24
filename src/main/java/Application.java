@@ -26,6 +26,7 @@ import util.PasswordUtil;
 import config.SecurityConfig;
 
 import org.neo4j.graphdb.Direction;
+import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
@@ -1111,6 +1112,43 @@ public class Application {
                 }
             }
         });
+
+        // 向节点添加标签
+        app.post("/db/data/node/{id}/labels", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    
+                    if (labelElement.isJsonArray()) {
+                        // 处理多个标签
+                        JsonArray labels = labelElement.getAsJsonArray();
+                        for (JsonElement label : labels) {
+                            addLabel(node, label.getAsString());
+                        }
+                    } else {
+                        // 处理单个标签
+                        String labelName = labelElement.getAsString();
+                        addLabel(node, labelName);
+                    }
+                    
+                    tx.success();
+                    ctx.status(204);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {
@@ -1249,5 +1287,19 @@ public class Application {
         }
         
         throw new IllegalArgumentException("Unsupported property value type");
+    }
+
+    // 辅助方法：添加单个标签并验证标签名称
+    private static void addLabel(Node node, String labelName) {
+        if (labelName == null || labelName.trim().isEmpty()) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Unable to add label, see nested exception.");
+            errorResponse.put("exception", "BadInputException");
+            errorResponse.put("fullname", "org.neo4j.server.rest.repr.BadInputException");
+            throw new IllegalArgumentException(new Gson().toJson(errorResponse));
+        }
+        
+        // 添加有效的标签
+        node.addLabel(DynamicLabel.label(labelName));
     }
 }

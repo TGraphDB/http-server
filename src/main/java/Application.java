@@ -27,6 +27,7 @@ import config.SecurityConfig;
 
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.DynamicLabel;
+import org.neo4j.graphdb.Label; // label和dynamiclabel的区别
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
@@ -1132,6 +1133,60 @@ public class Application {
                         // 处理单个标签
                         String labelName = labelElement.getAsString();
                         addLabel(node, labelName);
+                    }
+                    
+                    tx.success();
+                    ctx.status(204);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
+
+        // 替换节点上的所有标签
+        app.put("/db/data/node/{id}/labels", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    
+                    // 移除所有现有标签 （有可能没有label，要注意）
+                    for (Label label : node.getLabels()) {
+                        node.removeLabel(label);
+                    }
+                    
+                    // 确保请求体是一个数组
+                    if (!labelElement.isJsonArray()) {
+                        Map<String, Object> errorResponse = new HashMap<>();
+                        errorResponse.put("message", "Labels must be supplied as an array");
+                        errorResponse.put("exception", "BadInputException");
+                        errorResponse.put("fullname", "org.neo4j.server.rest.repr.BadInputException");
+                        
+                        List<Map<String, String>> errors = new ArrayList<>();
+                        Map<String, String> error = new HashMap<>();
+                        error.put("message", "Labels must be supplied as an array");
+                        error.put("code", "Neo.ClientError.Request.InvalidFormat");
+                        errors.add(error);
+                        errorResponse.put("errors", errors);
+                        
+                        ctx.status(400).json(errorResponse);
+                        return;
+                    }
+                    
+                    // 添加新标签
+                    JsonArray labels = labelElement.getAsJsonArray();
+                    for (JsonElement label : labels) {
+                        addLabel(node, label.getAsString());
                     }
                     
                     tx.success();

@@ -1388,6 +1388,76 @@ public class Application {
                 ctx.status(200).json(sortedLabels);
             }
         });
+
+        // 获取节点的度数（各种场景）
+        app.get("/db/data/node/{id}/degree/*", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            String[] pathParts = ctx.path().split("/");
+            // 获取最后两个部分，用于确定方向和关系类型
+            String direction = pathParts[pathParts.length - 1];
+            String types = null;
+            
+            // 如果路径包含关系类型，则分离方向和类型
+            if (direction.contains("/")) {
+                String[] dirAndTypes = direction.split("/");
+                direction = dirAndTypes[0];
+                types = dirAndTypes[1];
+            }
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    int degree = 0;
+                    
+                    // 根据不同场景计算度数
+                    if (types != null) {
+                        // 处理特定类型的关系
+                        String[] relationshipTypes = types.split("&");
+                        RelationshipType[] relTypes = new RelationshipType[relationshipTypes.length];
+                        for (int i = 0; i < relationshipTypes.length; i++) {
+                            relTypes[i] = new DynamicRelationshipType(relationshipTypes[i]);
+                        }
+                        
+                        // 根据方向计算度数
+                        switch (direction.toLowerCase()) {
+                            case "in":
+                                degree = node.getDegree(Direction.INCOMING);
+                                break;
+                            case "out":
+                                degree = node.getDegree(Direction.OUTGOING);
+                                break;
+                            default: // "all"
+                                degree = node.getDegree();
+                        }
+                    } else {
+                        // 仅根据方向计算度数
+                        switch (direction.toLowerCase()) {
+                            case "in":
+                                degree = node.getDegree(Direction.INCOMING);
+                                break;
+                            case "out":
+                                degree = node.getDegree(Direction.OUTGOING);
+                                break;
+                            default: // "all"
+                                degree = node.getDegree();
+                        }
+                    }
+                    
+                    tx.success();
+                    ctx.status(200).json(degree);
+                    
+                } catch (NotFoundException e) {
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

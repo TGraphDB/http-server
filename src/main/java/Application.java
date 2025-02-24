@@ -1356,6 +1356,38 @@ public class Application {
                 }
             }
         });
+
+        // 列出所有标签
+        app.get("/db/data/labels", ctx -> {
+            try (Transaction tx = graphDb.beginTx()) {
+                Set<String> labels = new HashSet<>();
+                GlobalGraphOperations ggo = GlobalGraphOperations.at(graphDb);
+                
+                // 检查是否需要只返回正在使用的标签
+                boolean onlyInUse = !("0".equals(ctx.queryParam("in_use")));
+                
+                if (onlyInUse) {
+                    // 只获取正在使用的标签
+                    for (Node node : ggo.getAllNodes()) {
+                        for (Label label : node.getLabels()) {
+                            labels.add(label.name());
+                        }
+                    }
+                } else {
+                    // 获取所有标签（包括未使用的）
+                    for (Label label : ggo.getAllLabels()) {
+                        labels.add(label.name());
+                    }
+                }
+                
+                // 转换为列表并排序
+                List<String> sortedLabels = new ArrayList<>(labels);
+                Collections.sort(sortedLabels);
+                
+                tx.success();
+                ctx.status(200).json(sortedLabels);
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

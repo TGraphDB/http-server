@@ -975,6 +975,46 @@ public class Application {
                 }
             }
         });
+
+        // 删除节点的单个属性
+        app.delete("/db/data/node/{id}/properties/{key}", ctx -> {
+            long nodeId = Long.parseLong(ctx.pathParam("id"));
+            String propertyKey = ctx.pathParam("key");
+            
+            try (Transaction tx = graphDb.beginTx()) {
+                try {
+                    Node node = graphDb.getNodeById(nodeId);
+                    
+                    // 检查属性是否存在
+                    if (node.hasProperty(propertyKey)) {
+                        node.removeProperty(propertyKey);
+                        tx.success();
+                        ctx.status(204);
+                    } else {
+                        // 如果属性不存在，返回 404
+                        Map<String, Object> errorResponse = new HashMap<>();
+                        List<Map<String, String>> errors = new ArrayList<>();
+                        Map<String, String> error = new HashMap<>();
+                        error.put("message", String.format("Property [%s] not found for Node[%d]", propertyKey, nodeId));
+                        error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                        errors.add(error);
+                        errorResponse.put("errors", errors);
+                        ctx.status(404).json(errorResponse);
+                    }
+                    
+                } catch (NotFoundException e) {
+                    // 如果节点不存在，返回 404
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    ctx.status(404).json(errorResponse);
+                }
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

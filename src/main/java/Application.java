@@ -534,7 +534,7 @@ public class Application {
             }
         });
 
-        // 设置关系上的所有属性 目前仅支持三种类型
+        // 设置关系上的所有属性
         app.put("/db/data/relationship/{id}/properties", ctx -> {
             long relationshipId = Long.parseLong(ctx.pathParam("id"));
             JsonObject properties = new Gson().fromJson(ctx.body(), JsonObject.class);
@@ -549,16 +549,28 @@ public class Application {
                 
                 // 设置新属性
                 for (Map.Entry<String, JsonElement> entry : properties.entrySet()) {
-                    JsonElement value = entry.getValue();
-                    if (value.isJsonPrimitive()) {
-                        JsonPrimitive primitive = value.getAsJsonPrimitive();
-                        if (primitive.isString()) {
-                            relationship.setProperty(entry.getKey(), primitive.getAsString());
-                        } else if (primitive.isNumber()) {
-                            relationship.setProperty(entry.getKey(), primitive.getAsNumber());
-                        } else if (primitive.isBoolean()) {
-                            relationship.setProperty(entry.getKey(), primitive.getAsBoolean());
+                    try {
+                        Object propertyValue = convertJsonElementToPropertyValue(entry.getValue());
+                        if (propertyValue != null) {
+                            relationship.setProperty(entry.getKey(), propertyValue);
                         }
+                    } catch (IllegalArgumentException e) {
+                        // 处理不支持的属性值类型
+                        Map<String, Object> errorResponse = new HashMap<>();
+                        errorResponse.put("message", String.format("Could not set property \"%s\", %s", 
+                            entry.getKey(), e.getMessage()));
+                        errorResponse.put("exception", "PropertyValueException");
+                        
+                        List<Map<String, String>> errors = new ArrayList<>();
+                        Map<String, String> error = new HashMap<>();
+                        error.put("message", String.format("Could not set property \"%s\", %s",
+                            entry.getKey(), e.getMessage()));
+                        error.put("code", "Neo.ClientError.Statement.InvalidArguments");
+                        errors.add(error);
+                        errorResponse.put("errors", errors);
+                        
+                        ctx.status(400).json(errorResponse);
+                        return;
                     }
                 }
                 

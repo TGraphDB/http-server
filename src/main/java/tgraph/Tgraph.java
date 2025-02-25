@@ -17,7 +17,8 @@ public class Tgraph {
     public GraphDatabaseService createDb(String DB_PATH) throws IOException {
         FileUtils.deleteRecursively( new File( DB_PATH ) );
         // START SNIPPET: startDb
-        GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( DB_PATH );
+        // GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( DB_PATH );
+        GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder( new File(DB_PATH) ).newGraphDatabase();
         registerShutdownHook( graphDb );
         return graphDb;
         // END SNIPPET: startDb
@@ -26,7 +27,7 @@ public class Tgraph {
     public GraphDatabaseService startDb(String DB_PATH)
     {
         // START SNIPPET: startDb
-        GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( DB_PATH );
+        GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder( new File(DB_PATH) ).newGraphDatabase();
         registerShutdownHook( graphDb );
         return graphDb;
         // END SNIPPET: startDb

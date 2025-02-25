@@ -38,6 +38,12 @@ import org.neo4j.graphdb.RelationshipType;
 public class Application {
     private static UserService userService = new UserService();
     private static Tgraph tgraph = new Tgraph();
+    /*
+    1. 当应用程序启动时，Application 类被加载
+    2. 类加载时会执行静态字段的初始化
+    3. tgraph.startDb() 被调用，启动数据库
+    4. 数据库实例被赋值给 graphDb 静态字段
+     */
     private static GraphDatabaseService graphDb = tgraph.startDb("target/neo4j-hello-db");
     
     public static void main(String[] args) {

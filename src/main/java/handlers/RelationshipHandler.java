@@ -481,6 +481,90 @@ public class RelationshipHandler {
         }
     }
 
+    // 从关系中删除所有属性
+    public void deleteAllProperties(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        
+        try (Transaction tx = graphDb.beginTx()) {
+            try {
+                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                
+                // 移除所有属性
+                for (String key : relationship.getPropertyKeys()) {
+                    relationship.removeProperty(key);
+                }
+                
+                tx.success();
+                ctx.status(204);
+                
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            }
+        }
+    }
+
+    // 从关系中删除单个属性
+    public void deleteProperty(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        String propertyKey = ctx.pathParam("key");
+        
+        try (Transaction tx = graphDb.beginTx()) {
+            try {
+                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                
+                // 检查属性是否存在
+                if (relationship.hasProperty(propertyKey)) {
+                    relationship.removeProperty(propertyKey);
+                    tx.success();
+                    ctx.status(204);
+                } else {
+                    // 如果属性不存在，返回404并提供详细错误信息
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    errorResponse.put("message", String.format("Relationship[%d] does not have a property \"%s\"",
+                        relationshipId, propertyKey));
+                    errorResponse.put("exception", "NoSuchPropertyException");
+                    errorResponse.put("fullname", "org.neo4j.server.rest.web.NoSuchPropertyException");
+                    
+                    // 添加堆栈跟踪
+                    List<String> stackTrace = new ArrayList<>();
+                    for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+                        stackTrace.add(element.toString());
+                    }
+                    errorResponse.put("stackTrace", stackTrace);
+                    
+                    // 添加错误详情
+                    List<Map<String, String>> errors = new ArrayList<>();
+                    Map<String, String> error = new HashMap<>();
+                    error.put("message", String.format("Relationship[%d] does not have a property \"%s\"",
+                        relationshipId, propertyKey));
+                    error.put("code", "Neo.ClientError.Statement.NoSuchProperty");
+                    errors.add(error);
+                    errorResponse.put("errors", errors);
+                    
+                    ctx.status(404).json(errorResponse);
+                }
+                
+            } catch (NotFoundException e) {
+                // 如果关系不存在，返回404
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            }
+        }
+    }
+
 
 
     // 辅助方法用于从URL中提取节点ID

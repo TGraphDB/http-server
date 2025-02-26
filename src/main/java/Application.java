@@ -13,6 +13,7 @@ import java.util.List;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
+import handlers.NodeHandler;
 import handlers.RelationshipHandler;
 
 import com.google.gson.JsonElement;
@@ -51,6 +52,7 @@ public class Application {
 
      // 创建处理器实例
      private static RelationshipHandler relationshipHandler = new RelationshipHandler(graphDb);
+     private static NodeHandler nodeHandler = new NodeHandler(graphDb);
     
     public static void main(String[] args) {
 
@@ -209,164 +211,10 @@ public class Application {
         });
 
         // 创建节点API
-        app.post("/db/data/node", ctx -> {
-            // 获取请求体中的属性
-            // 判断请求体是否为空
-            Map<String, Object> properties;
-            if (ctx.body().isEmpty()) {
-                properties = new HashMap<>();
-            }
-            else {
-                properties = ctx.bodyAsClass(Map.class);
-            }
-
-            long nodeid = 0;
-
-            // 创建节点（并设置属性）
-            try (Transaction tx = graphDb.beginTx()) {
-                Node node = graphDb.createNode();
-                nodeid = node.getId();
-                // 设置请求中的所有属性
-                for (Map.Entry<String, Object> entry : properties.entrySet()) {
-                    node.setProperty(entry.getKey(), entry.getValue());
-                }
-                
-                tx.success();
-            }
-
-            Map<String, Object> response = new HashMap<>();
-            String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeid;
-            
-            // 构建响应体
-            response.put("extensions", new HashMap<>());
-            response.put("labels", baseUrl + "/labels");
-            response.put("outgoing_relationships", baseUrl + "/relationships/out");
-            response.put("all_typed_relationships", baseUrl + "/relationships/all/{-list|&|types}");
-            response.put("traverse", baseUrl + "/traverse/{returnType}");
-            response.put("self", baseUrl);
-            response.put("property", baseUrl + "/properties/{key}");
-            response.put("properties", baseUrl + "/properties");
-            response.put("outgoing_typed_relationships", baseUrl + "/relationships/out/{-list|&|types}");
-            response.put("incoming_relationships", baseUrl + "/relationships/in");
-            response.put("create_relationship", baseUrl + "/relationships");
-            response.put("paged_traverse", baseUrl + "/paged/traverse/{returnType}{?pageSize,leaseTime}");
-            response.put("all_relationships", baseUrl + "/relationships/all");
-            response.put("incoming_typed_relationships", baseUrl + "/relationships/in/{-list|&|types}");
-
-            // 添加元数据
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("id", nodeid);
-            metadata.put("labels", Collections.emptyList());
-            response.put("metadata", metadata);
-            
-            // 添加节点属性数据
-            response.put("data", properties);
-
-            // 设置响应状态和位置头
-            ctx.status(201)
-            .header("Location", baseUrl)
-            .json(response);
-        });
-
-        // 获取节点API(存在和不存在的)
-        app.get("/db/data/node/{id}", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                // 通过nodeid属性查找节点
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    Map<String, Object> response = new HashMap<>();
-                    String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeId;
-
-                    // 构建响应体
-                    response.put("extensions", new HashMap<>());
-                    response.put("labels", baseUrl + "/labels");
-                    response.put("outgoing_relationships", baseUrl + "/relationships/out");
-                    response.put("all_typed_relationships", baseUrl + "/relationships/all/{-list|&|types}");
-                    response.put("traverse", baseUrl + "/traverse/{returnType}");
-                    response.put("self", baseUrl);
-                    response.put("property", baseUrl + "/properties/{key}");
-                    response.put("properties", baseUrl + "/properties");
-                    response.put("outgoing_typed_relationships", baseUrl + "/relationships/out/{-list|&|types}");
-                    response.put("incoming_relationships", baseUrl + "/relationships/in");
-                    response.put("create_relationship", baseUrl + "/relationships");
-                    response.put("paged_traverse", baseUrl + "/paged/traverse/{returnType}{?pageSize,leaseTime}");
-                    response.put("all_relationships", baseUrl + "/relationships/all");
-                    response.put("incoming_typed_relationships", baseUrl + "/relationships/in/{-list|&|types}");
-
-                    // 添加元数据
-                    Map<String, Object> metadata = new HashMap<>();
-                    metadata.put("id", nodeId);
-                    metadata.put("labels", Collections.emptyList());
-                    response.put("metadata", metadata);
-
-                    // 添加节点数据
-                    Map<String, Object> data = new HashMap<>();
-                    for (String key : node.getPropertyKeys()) {
-                        if (!key.equals("nodeid")) { // 排除nodeid属性
-                            data.put(key, node.getProperty(key));
-                        }
-                    }
-                    response.put("data", data);
-
-                    ctx.status(200).json(response);
-
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-
-                tx.success();
-            }
-        });
+        app.post("/db/data/node", nodeHandler::createNode);
 
         // 删除节点API
-        app.delete("/db/data/node/{id}", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 检查节点是否有关系
-                    if (node.hasRelationship()) {
-                        // 如果有关系，返回409错误
-                        Map<String, Object> errorResponse = new HashMap<>();
-                        List<Map<String, String>> errors = new ArrayList<>();
-                        Map<String, String> error = new HashMap<>();
-                        error.put("message", "The node with id " + nodeId + " cannot be deleted. Check that the node is orphaned before deletion.");
-                        error.put("code", "Neo.ClientError.Schema.ConstraintViolation");
-                        errors.add(error);
-                        errorResponse.put("errors", errors);
-                        
-                        ctx.status(409).json(errorResponse);
-                        return;
-                    }
-                    
-                    // 如果没有关系，删除节点
-                    node.delete();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-                tx.success();
-            }
-        });
+        app.delete("/db/data/node/{id}", nodeHandler::deleteNode);
 
         // 通过ID获取关系API
         app.get("/db/data/relationship/{id}", relationshipHandler::getRelationship);
@@ -405,450 +253,40 @@ public class Application {
         app.get("/db/data/relationship/types", relationshipHandler::getRelationshipTypes);
 
         // 在节点上设置单个属性
-        app.put("/db/data/node/{id}/properties/{key}", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            String propertyKey = ctx.pathParam("key");
-            JsonElement value = new Gson().fromJson(ctx.body(), JsonElement.class);
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 使用通用转换方法处理属性值
-                    Object propertyValue = convertJsonElementToPropertyValue(value);
-                    if (propertyValue != null) {
-                        node.setProperty(propertyKey, propertyValue);
-                    }
-                    
-                    tx.success();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.put("/db/data/node/{id}/properties/{key}", nodeHandler::setProperty);
 
         // 更新节点的所有属性
-        app.put("/db/data/node/{id}/properties", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            JsonObject properties = new Gson().fromJson(ctx.body(), JsonObject.class);
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 移除所有现有属性
-                    for (String key : node.getPropertyKeys()) {
-                        node.removeProperty(key);
-                    }
-                    
-                    // 设置新属性
-                    for (Map.Entry<String, JsonElement> entry : properties.entrySet()) {
-                        Object propertyValue = convertJsonElementToPropertyValue(entry.getValue());
-                        if (propertyValue != null) {
-                            node.setProperty(entry.getKey(), propertyValue);
-                        }
-                    }
-                    
-                    tx.success();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.put("/db/data/node/{id}/properties", nodeHandler::updateAllProperties);
 
         // 获取节点的所有属性
-        app.get("/db/data/node/{id}/properties", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 构建属性Map
-                    Map<String, Object> properties = new HashMap<>();
-                    for (String key : node.getPropertyKeys()) {
-                        properties.put(key, node.getProperty(key));
-                    }
-                    
-                    tx.success();
-                    ctx.status(200).json(properties);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.get("/db/data/node/{id}/properties", nodeHandler::getAllProperties);
 
         // 获取节点的单个属性
-        app.get("/db/data/node/{id}/properties/{key}", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            String propertyKey = ctx.pathParam("key");
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 检查属性是否存在
-                    if (node.hasProperty(propertyKey)) {
-                        Object value = node.getProperty(propertyKey);
-                        tx.success();
-                        ctx.status(200).json(value);
-                    } else {
-                        Map<String, Object> errorResponse = new HashMap<>();
-                        List<Map<String, String>> errors = new ArrayList<>();
-                        Map<String, String> error = new HashMap<>();
-                        error.put("message", String.format("Property [%s] not found for Node[%d]", propertyKey, nodeId));
-                        error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                        errors.add(error);
-                        errorResponse.put("errors", errors);
-                        ctx.status(404).json(errorResponse);
-                    }
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.get("/db/data/node/{id}/properties/{key}", nodeHandler::getProperty);
 
         // 删除节点的所有属性
-        app.delete("/db/data/node/{id}/properties", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 移除所有属性
-                    for (String key : node.getPropertyKeys()) {
-                        node.removeProperty(key);
-                    }
-                    
-                    tx.success();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.delete("/db/data/node/{id}/properties", nodeHandler::deleteAllProperties);
 
         // 删除节点的单个属性
-        app.delete("/db/data/node/{id}/properties/{key}", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            String propertyKey = ctx.pathParam("key");
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 检查属性是否存在
-                    if (node.hasProperty(propertyKey)) {
-                        node.removeProperty(propertyKey);
-                        tx.success();
-                        ctx.status(204);
-                    } else {
-                        // 如果属性不存在，返回 404
-                        Map<String, Object> errorResponse = new HashMap<>();
-                        List<Map<String, String>> errors = new ArrayList<>();
-                        Map<String, String> error = new HashMap<>();
-                        error.put("message", String.format("Property [%s] not found for Node[%d]", propertyKey, nodeId));
-                        error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                        errors.add(error);
-                        errorResponse.put("errors", errors);
-                        ctx.status(404).json(errorResponse);
-                    }
-                    
-                } catch (NotFoundException e) {
-                    // 如果节点不存在，返回 404
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.delete("/db/data/node/{id}/properties/{key}", nodeHandler::deleteProperty);
 
         // 从关系中删除所有属性
-        app.delete("/db/data/relationship/{id}/properties", ctx -> {
-            long relationshipId = Long.parseLong(ctx.pathParam("id"));
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Relationship relationship = graphDb.getRelationshipById(relationshipId);
-                    
-                    // 移除所有属性
-                    for (String key : relationship.getPropertyKeys()) {
-                        relationship.removeProperty(key);
-                    }
-                    
-                    tx.success();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.delete("/db/data/relationship/{id}/properties", relationshipHandler::deleteAllProperties);
 
         // 从关系中删除单个属性
-        app.delete("/db/data/relationship/{id}/properties/{key}", ctx -> {
-            long relationshipId = Long.parseLong(ctx.pathParam("id"));
-            String propertyKey = ctx.pathParam("key");
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Relationship relationship = graphDb.getRelationshipById(relationshipId);
-                    
-                    // 检查属性是否存在
-                    if (relationship.hasProperty(propertyKey)) {
-                        relationship.removeProperty(propertyKey);
-                        tx.success();
-                        ctx.status(204);
-                    } else {
-                        // 如果属性不存在，返回404并提供详细错误信息
-                        Map<String, Object> errorResponse = new HashMap<>();
-                        errorResponse.put("message", String.format("Relationship[%d] does not have a property \"%s\"",
-                            relationshipId, propertyKey));
-                        errorResponse.put("exception", "NoSuchPropertyException");
-                        errorResponse.put("fullname", "org.neo4j.server.rest.web.NoSuchPropertyException");
-                        
-                        // 添加堆栈跟踪
-                        List<String> stackTrace = new ArrayList<>();
-                        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
-                            stackTrace.add(element.toString());
-                        }
-                        errorResponse.put("stackTrace", stackTrace);
-                        
-                        // 添加错误详情
-                        List<Map<String, String>> errors = new ArrayList<>();
-                        Map<String, String> error = new HashMap<>();
-                        error.put("message", String.format("Relationship[%d] does not have a property \"%s\"",
-                            relationshipId, propertyKey));
-                        error.put("code", "Neo.ClientError.Statement.NoSuchProperty");
-                        errors.add(error);
-                        errorResponse.put("errors", errors);
-                        
-                        ctx.status(404).json(errorResponse);
-                    }
-                    
-                } catch (NotFoundException e) {
-                    // 如果关系不存在，返回404
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.delete("/db/data/relationship/{id}/properties/{key}", relationshipHandler::deleteProperty);
 
         // 向节点添加标签
-        app.post("/db/data/node/{id}/labels", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    if (labelElement.isJsonArray()) {
-                        // 处理多个标签
-                        JsonArray labels = labelElement.getAsJsonArray();
-                        for (JsonElement label : labels) {
-                            addLabel(node, label.getAsString());
-                        }
-                    } else {
-                        // 处理单个标签
-                        String labelName = labelElement.getAsString();
-                        addLabel(node, labelName);
-                    }
-                    
-                    tx.success();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.post("/db/data/node/{id}/labels", nodeHandler::addLabels);
 
         // 替换节点上的所有标签
-        app.put("/db/data/node/{id}/labels", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 移除所有现有标签 （有可能没有label，要注意）
-                    for (Label label : node.getLabels()) {
-                        node.removeLabel(label);
-                    }
-                    
-                    // 确保请求体是一个数组
-                    if (!labelElement.isJsonArray()) {
-                        Map<String, Object> errorResponse = new HashMap<>();
-                        errorResponse.put("message", "Labels must be supplied as an array");
-                        errorResponse.put("exception", "BadInputException");
-                        errorResponse.put("fullname", "org.neo4j.server.rest.repr.BadInputException");
-                        
-                        List<Map<String, String>> errors = new ArrayList<>();
-                        Map<String, String> error = new HashMap<>();
-                        error.put("message", "Labels must be supplied as an array");
-                        error.put("code", "Neo.ClientError.Request.InvalidFormat");
-                        errors.add(error);
-                        errorResponse.put("errors", errors);
-                        
-                        ctx.status(400).json(errorResponse);
-                        return;
-                    }
-                    
-                    // 添加新标签
-                    JsonArray labels = labelElement.getAsJsonArray();
-                    for (JsonElement label : labels) {
-                        addLabel(node, label.getAsString());
-                    }
-                    
-                    tx.success();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.put("/db/data/node/{id}/labels", nodeHandler::replaceLabels);
 
         // 从节点中删除标签
-        app.delete("/db/data/node/{id}/labels/{labelName}", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            String labelName = ctx.pathParam("labelName");
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 创建标签对象
-                    Label label = DynamicLabel.label(labelName);
-                    
-                    // 移除标签 (无论标签是否存在)
-                    node.removeLabel(label);
-                    
-                    tx.success();
-                    ctx.status(204);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.delete("/db/data/node/{id}/labels/{labelName}", nodeHandler::removeLabel);
 
         // 获取节点的所有标签
-        app.get("/db/data/node/{id}/labels", ctx -> {
-            long nodeId = Long.parseLong(ctx.pathParam("id"));
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Node node = graphDb.getNodeById(nodeId);
-                    
-                    // 收集节点的所有标签
-                    List<String> labels = new ArrayList<>();
-                    for (Label label : node.getLabels()) {
-                        labels.add(label.name());
-                    }
-                    
-                    // 对标签列表进行排序
-                    Collections.sort(labels);
-                    
-                    tx.success();
-                    ctx.status(200).json(labels);
-                    
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load NODE with id " + nodeId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-            }
-        });
+        app.get("/db/data/node/{id}/labels", nodeHandler::getAllLabels);
 
         // 获取具有特定标签的所有节点，支持可选的属性过滤
         app.get("/db/data/label/{labelName}/nodes", ctx -> {

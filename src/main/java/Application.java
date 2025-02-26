@@ -375,27 +375,7 @@ public class Application {
         app.post("/db/data/node/{id}/relationships", relationshipHandler::createRelationship);
 
         // 删除关系API
-        app.delete("/db/data/relationship/{id}", ctx -> {
-            long relationshipId = Long.parseLong(ctx.pathParam("id"));
-            
-            try (Transaction tx = graphDb.beginTx()) {
-                try {
-                    Relationship relationship = graphDb.getRelationshipById(relationshipId);
-                    relationship.delete();
-                    ctx.status(204);
-                } catch (NotFoundException e) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    List<Map<String, String>> errors = new ArrayList<>();
-                    Map<String, String> error = new HashMap<>();
-                    error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
-                    error.put("code", "Neo.ClientError.Statement.EntityNotFound");
-                    errors.add(error);
-                    errorResponse.put("errors", errors);
-                    ctx.status(404).json(errorResponse);
-                }
-                tx.success();
-            }
-        });
+        app.delete("/db/data/relationship/{id}", relationshipHandler::deleteRelationship);
 
         // 获取关系上所有属性API
         app.get("/db/data/relationship/{id}/properties", ctx -> {

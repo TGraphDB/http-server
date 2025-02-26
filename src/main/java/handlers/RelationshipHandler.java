@@ -140,6 +140,28 @@ public class RelationshipHandler {
         }
     }
 
+    public void deleteRelationship(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        
+        try (Transaction tx = graphDb.beginTx()) {
+            try {
+                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                relationship.delete();
+                ctx.status(204);
+                tx.success();
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            }
+        }
+    }
+
 
 
     // 辅助方法用于从URL中提取节点ID

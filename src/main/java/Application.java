@@ -1,9 +1,11 @@
 import io.javalin.Javalin;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 
 import handlers.LabelHandler;
 import handlers.NodeHandler;
@@ -21,6 +23,7 @@ import service.SecurityConfig;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.Label; // label和dynamiclabel的区别
+import org.neo4j.graphdb.NotFoundException;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.RelationshipType;
 
@@ -175,6 +178,9 @@ public class Application {
         // 创建节点API
         app.post("/db/data/node", nodeHandler::createNode);
 
+        // 获取节点API(存在和不存在的)
+        app.get("/db/data/node/{id}", nodeHandler::getNode);
+
         // 删除节点API
         app.delete("/db/data/node/{id}", nodeHandler::deleteNode);
 
@@ -289,19 +295,5 @@ public class Application {
         
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
-    }
-
-    // Dynamic RelationshipType implementation
-    private static class DynamicRelationshipType implements RelationshipType {
-        private final String name;
-        
-        public DynamicRelationshipType(String name) {
-            this.name = name;
-        }
-        
-        @Override
-        public String name() {
-            return name;
-        }
     }
 }

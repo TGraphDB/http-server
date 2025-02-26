@@ -91,6 +91,65 @@ public class NodeHandler {
         .json(response);
     }
 
+    // 获取节点API(存在和不存在的)
+    public void getNode(Context ctx) {
+        long nodeId = Long.parseLong(ctx.pathParam("id"));
+        
+        try (Transaction tx = graphDb.beginTx()) {
+            // 通过nodeid属性查找节点
+            try {
+                Node node = graphDb.getNodeById(nodeId);
+                Map<String, Object> response = new HashMap<>();
+                String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeId;
+
+                // 构建响应体
+                response.put("extensions", new HashMap<>());
+                response.put("labels", baseUrl + "/labels");
+                response.put("outgoing_relationships", baseUrl + "/relationships/out");
+                response.put("all_typed_relationships", baseUrl + "/relationships/all/{-list|&|types}");
+                response.put("traverse", baseUrl + "/traverse/{returnType}");
+                response.put("self", baseUrl);
+                response.put("property", baseUrl + "/properties/{key}");
+                response.put("properties", baseUrl + "/properties");
+                response.put("outgoing_typed_relationships", baseUrl + "/relationships/out/{-list|&|types}");
+                response.put("incoming_relationships", baseUrl + "/relationships/in");
+                response.put("create_relationship", baseUrl + "/relationships");
+                response.put("paged_traverse", baseUrl + "/paged/traverse/{returnType}{?pageSize,leaseTime}");
+                response.put("all_relationships", baseUrl + "/relationships/all");
+                response.put("incoming_typed_relationships", baseUrl + "/relationships/in/{-list|&|types}");
+
+                // 添加元数据
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("id", nodeId);
+                metadata.put("labels", Collections.emptyList());
+                response.put("metadata", metadata);
+
+                // 添加节点数据
+                Map<String, Object> data = new HashMap<>();
+                for (String key : node.getPropertyKeys()) {
+                    if (!key.equals("nodeid")) { // 排除nodeid属性
+                        data.put(key, node.getProperty(key));
+                    }
+                }
+                response.put("data", data);
+
+                ctx.status(200).json(response);
+
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            }
+
+            tx.success();
+        }
+    }
+
     // 删除节点API
     public void deleteNode(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));

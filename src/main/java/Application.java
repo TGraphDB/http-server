@@ -1,18 +1,16 @@
 import io.javalin.Javalin;
 
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.List;
 
 import handlers.LabelHandler;
 import handlers.NodeHandler;
 import handlers.RelationshipHandler;
 import handlers.PropertyHandler;
 
-import org.neo4j.tooling.GlobalGraphOperations; // 着重了解一下
+// 着重了解一下org.neo4j.tooling.GlobalGraphOperations
 
 import service.UserService;
 import tgraph.Tgraph;
@@ -20,12 +18,9 @@ import service.User;
 import util.PasswordUtil;
 import service.SecurityConfig;
 
-import org.neo4j.graphdb.Direction;
-import org.neo4j.graphdb.DynamicLabel;
-import org.neo4j.graphdb.Label; // label和dynamiclabel的区别
-import org.neo4j.graphdb.NotFoundException;
+// label和dynamiclabel的区别
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.RelationshipType;
+
 
 
 public class Application {

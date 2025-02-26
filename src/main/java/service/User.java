@@ -1,6 +1,8 @@
 package service;
 
-public class User {
+// auth.enabled做持久化存储需要记录是哪个user或者是哪个database
+
+public class User { // 每个user的数据库放在target/{username}/{databaseName}下
     private String username;
     private String passwordHash;
     private boolean passwordChangeRequired;

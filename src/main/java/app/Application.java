@@ -13,6 +13,7 @@ import java.util.List;
 import handlers.LabelHandler;
 import handlers.NodeHandler;
 import handlers.RelationshipHandler;
+import handlers.TgraphHandler;
 import handlers.PropertyHandler;
 
 // 着重了解一下org.neo4j.tooling.GlobalGraphOperations
@@ -43,13 +44,15 @@ public class Application {
     private static NodeHandler nodeHandler = new NodeHandler(graphDb);
     private static LabelHandler labelHandler = new LabelHandler(graphDb);
     private static PropertyHandler propertyHandler = new PropertyHandler(graphDb);
+    private static TgraphHandler TgraphHandler = new TgraphHandler(graphDb, tgraph);
 
     // 在创建或启动数据库后更新所有handler的graphDb
-    private static void updateHandlers(GraphDatabaseService newGraphDb) {
+    public static void updateHandlers(GraphDatabaseService newGraphDb) {
         relationshipHandler.setGraphDb(newGraphDb);
         nodeHandler.setGraphDb(newGraphDb);
         labelHandler.setGraphDb(newGraphDb);
         propertyHandler.setGraphDb(newGraphDb);
+        TgraphHandler.setGraphDb(newGraphDb);
     }
     
     public static void main(String[] args) {
@@ -273,146 +276,22 @@ public class Application {
         app.get("/db/data/node/{id}/degree/*", nodeHandler::getDegree);
 
         // 创建数据库
-        app.post("/db/data/database/{databaseName}/create", ctx -> {
-            String databaseName = ctx.pathParam("databaseName");
-            if (graphDb != null) {
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", "已有数据库在运行，请先关闭当前数据库");
-                error.put("code", "Neo.ClientError.General.DatabaseError");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(409).json(errorResponse); // 409 Conflict
-                return;
-            }
-            graphDb = tgraph.createDb(databaseName);
-            updateHandlers(graphDb); // 更新handlers
-            ctx.status(201);
-        });
+        app.post("/db/data/database/{databaseName}/create", TgraphHandler::createDatabase);
 
         // 启动数据库
-        app.post("/db/data/database/{databaseName}/start", ctx -> {
-            String databaseName = ctx.pathParam("databaseName");
-            if (graphDb != null) {
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", "已有数据库在运行，请先关闭当前数据库");
-                error.put("code", "Neo.ClientError.General.DatabaseError");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(409).json(errorResponse); // 409 Conflict
-                return;
-            }
-            graphDb = tgraph.startDb(databaseName);
-            updateHandlers(graphDb); // 更新handlers
-            ctx.status(201);
-        });
+        app.post("/db/data/database/{databaseName}/start", TgraphHandler::startDatabase);
 
         // 删除数据库
-        app.delete("/db/data/database/{databaseName}", ctx -> {
-            String databaseName = ctx.pathParam("databaseName");
-            boolean isDelete = tgraph.deleteDb(databaseName);
-            if (isDelete) {
-                ctx.status(204);
-            } else {
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", "删除数据库 '" + databaseName + "' 失败");
-                error.put("code", "Neo.ClientError.General.DatabaseError");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(500).json(errorResponse);
-            }
-        });
+        app.delete("/db/data/database/{databaseName}", TgraphHandler::deleteDatabase);
         
         // 关闭数据库 由于一个时间只能有一个数据库被打开 所以不用传入{databaseName}
-        app.post("/db/data/database", ctx -> {
-            tgraph.shutDown(graphDb);
-            graphDb = null;
-            updateHandlers(null); // 清空handlers中的graphDb
-            ctx.status(204);
-        });
+        app.post("/db/data/database", TgraphHandler::shutdownDatabase);
 
         // 备份数据库
-        app.post("/db/data/database/{databaseName}/backup", ctx -> {
-            String databaseName = ctx.pathParam("databaseName");
-            try {
-                tgraph.backupDatabase(databaseName);
-                ctx.status(201);
-            } catch (IllegalStateException e) {
-                // 数据库正在运行的错误处理
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", e.getMessage());
-                error.put("code", "Neo.ClientError.General.DatabaseError");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(409).json(errorResponse);
-            } catch (IllegalArgumentException e) {
-                // 数据库不存在的错误处理
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", e.getMessage());
-                error.put("code", "Neo.ClientError.General.DatabaseNotFound");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(404).json(errorResponse);
-            } catch (IOException e) {
-                // IO错误处理
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", "备份数据库时发生错误: " + e.getMessage());
-                error.put("code", "Neo.ClientError.General.IOError");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(500).json(errorResponse);
-            }
-        });
+        app.post("/db/data/database/{databaseName}/backup", TgraphHandler::backupDatabase);
 
         // 恢复数据库
-        app.post("/db/data/database/{databaseName}/restore", ctx -> {
-            String databaseName = ctx.pathParam("databaseName");
-            try {
-                tgraph.restoreDatabase(databaseName);
-                ctx.status(201);
-            } catch (IllegalStateException e) {
-                // 数据库正在运行或目标数据库已存在的错误处理
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", e.getMessage());
-                error.put("code", "Neo.ClientError.General.DatabaseError");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(409).json(errorResponse);
-            } catch (IllegalArgumentException e) {
-                // 备份文件不存在的错误处理
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", e.getMessage());
-                error.put("code", "Neo.ClientError.General.BackupNotFound");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(404).json(errorResponse);
-            } catch (IOException e) {
-                // IO错误处理
-                Map<String, Object> errorResponse = new HashMap<>();
-                List<Map<String, String>> errors = new ArrayList<>();
-                Map<String, String> error = new HashMap<>();
-                error.put("message", "恢复数据库时发生错误: " + e.getMessage());
-                error.put("code", "Neo.ClientError.General.IOError");
-                errors.add(error);
-                errorResponse.put("errors", errors);
-                ctx.status(500).json(errorResponse);
-            }
-        });
+        app.post("/db/data/database/{databaseName}/restore", TgraphHandler::restoreDatabase);
     }
     
     private static String[] extractCredentials(String authHeader) {

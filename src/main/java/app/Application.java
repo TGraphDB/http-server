@@ -1,10 +1,14 @@
+package app;
+
 import io.javalin.Javalin;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 
 import handlers.LabelHandler;
 import handlers.NodeHandler;
@@ -35,7 +39,7 @@ public class Application {
     4. 数据库实例被赋值给 graphDb 静态字段
      */
     // database不是这样创建的 而应该是通过rest api调用去创建的 可以用一个变量记录当前的user以及当前的数据库
-    private static GraphDatabaseService graphDb = tgraph.startDb("neo4j-hello-db");
+    public static GraphDatabaseService graphDb = null;
 
      // 创建处理器实例
      private static RelationshipHandler relationshipHandler = new RelationshipHandler(graphDb);
@@ -266,29 +270,61 @@ public class Application {
         // 创建数据库
         app.post("/db/data/database/{databaseName}/create", ctx -> {
             String databaseName = ctx.pathParam("databaseName");
-            GraphDatabaseService TGraph = tgraph.createDb(databaseName);
+            if (graphDb != null) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "已有数据库在运行，请先关闭当前数据库");
+                error.put("code", "Neo.ClientError.General.DatabaseError");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(409).json(errorResponse); // 409 Conflict
+                return;
+            }
+            graphDb = tgraph.createDb(databaseName);
             ctx.status(201);
         });
 
         // 启动数据库
         app.post("/db/data/database/{databaseName}/start", ctx -> {
             String databaseName = ctx.pathParam("databaseName");
-            tgraph.startDb(databaseName);
+            if (graphDb != null) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "已有数据库在运行，请先关闭当前数据库");
+                error.put("code", "Neo.ClientError.General.DatabaseError");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(409).json(errorResponse); // 409 Conflict
+                return;
+            }
+            graphDb = tgraph.startDb(databaseName);
             ctx.status(201);
         });
 
         // 删除数据库
         app.delete("/db/data/database/{databaseName}", ctx -> {
             String databaseName = ctx.pathParam("databaseName");
-            tgraph.deleteDb(databaseName);
-            ctx.status(204);
+            boolean isDelete = tgraph.deleteDb(databaseName);
+            if (isDelete) {
+                ctx.status(204);
+            } else {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "删除数据库 '" + databaseName + "' 失败");
+                error.put("code", "Neo.ClientError.General.DatabaseError");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(500).json(errorResponse);
+            }
         });
         
-        // 关闭数据库
-        app.post("/db/data/database/{databaseName}", ctx -> {
-            String databaseName = ctx.pathParam("databaseName");
-            GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( databaseName );
+        // 关闭数据库 由于一个时间只能有一个数据库被打开 所以不用传入{databaseName}
+        app.post("/db/data/database", ctx -> {
             tgraph.shutDown(graphDb);
+            graphDb = null;
             ctx.status(204);
         });
 

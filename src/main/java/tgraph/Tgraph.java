@@ -12,6 +12,8 @@ import java.util.Date;
 import net.lingala.zip4j.ZipFile;
 
 public class Tgraph {
+    // 由于只有一个实例，所以所有函数可以使用静态方法
+    // Application中37行可以放这里public static GraphDatabaseService graphDb = null;
     //private static final String DB_PATH = "target/neo4j-hello-db";
 
     public GraphDatabaseService createDb(String DB_NAME) throws IOException {

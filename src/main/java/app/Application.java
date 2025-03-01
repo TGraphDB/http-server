@@ -2,13 +2,10 @@ package app;
 
 import io.javalin.Javalin;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.List;
 
 import handlers.LabelHandler;
 import handlers.NodeHandler;

@@ -1,5 +1,6 @@
 import io.javalin.Javalin;
 
+import java.io.File;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
@@ -20,6 +21,7 @@ import service.SecurityConfig;
 
 // label和dynamiclabel的区别
 import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 
 
 
@@ -32,7 +34,8 @@ public class Application {
     3. tgraph.startDb() 被调用，启动数据库
     4. 数据库实例被赋值给 graphDb 静态字段
      */
-    private static GraphDatabaseService graphDb = tgraph.startDb("target/neo4j-hello-db");
+    // database不是这样创建的 而应该是通过rest api调用去创建的 可以用一个变量记录当前的user以及当前的数据库
+    private static GraphDatabaseService graphDb = tgraph.startDb("neo4j-hello-db");
 
      // 创建处理器实例
      private static RelationshipHandler relationshipHandler = new RelationshipHandler(graphDb);
@@ -259,6 +262,49 @@ public class Application {
 
         // 获取节点的度数（各种场景）
         app.get("/db/data/node/{id}/degree/*", nodeHandler::getDegree);
+
+        // 创建数据库
+        app.post("/db/data/database/{databaseName}/create", ctx -> {
+            String databaseName = ctx.pathParam("databaseName");
+            GraphDatabaseService TGraph = tgraph.createDb(databaseName);
+            ctx.status(201);
+        });
+
+        // 启动数据库
+        app.post("/db/data/database/{databaseName}/start", ctx -> {
+            String databaseName = ctx.pathParam("databaseName");
+            tgraph.startDb(databaseName);
+            ctx.status(201);
+        });
+
+        // 删除数据库
+        app.delete("/db/data/database/{databaseName}", ctx -> {
+            String databaseName = ctx.pathParam("databaseName");
+            tgraph.deleteDb(databaseName);
+            ctx.status(204);
+        });
+        
+        // 关闭数据库
+        app.post("/db/data/database/{databaseName}", ctx -> {
+            String databaseName = ctx.pathParam("databaseName");
+            GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( databaseName );
+            tgraph.shutDown(graphDb);
+            ctx.status(204);
+        });
+
+        // 备份数据库
+        app.post("/db/data/database/{databaseName}/backup", ctx -> {
+            String databaseName = ctx.pathParam("databaseName");
+            tgraph.backupDatabase(databaseName);
+            ctx.status(201);
+        });
+
+        // 恢复数据库
+        app.post("/db/data/database/{databaseName}/restore", ctx -> {
+            String databaseName = ctx.pathParam("databaseName");
+            tgraph.restoreDatabase(databaseName);
+            ctx.status(201);
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

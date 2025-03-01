@@ -14,7 +14,8 @@ import net.lingala.zip4j.ZipFile;
 public class Tgraph {
     //private static final String DB_PATH = "target/neo4j-hello-db";
 
-    public GraphDatabaseService createDb(String DB_PATH) throws IOException {
+    public GraphDatabaseService createDb(String DB_NAME) throws IOException {
+        String DB_PATH = "target/" + DB_NAME;
         FileUtils.deleteRecursively( new File( DB_PATH ) );
         // START SNIPPET: startDb
         // GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( DB_PATH );
@@ -24,8 +25,20 @@ public class Tgraph {
         // END SNIPPET: startDb
     }
 
-    public GraphDatabaseService startDb(String DB_PATH)
+    public boolean deleteDb(String DB_NAME) {
+        String DB_PATH = "target/" + DB_NAME;
+        try {
+            FileUtils.deleteRecursively( new File( DB_PATH ) );
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public GraphDatabaseService startDb(String DB_NAME)
     {
+        String DB_PATH = "target/" + DB_NAME;
         // START SNIPPET: startDb
         GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder( new File(DB_PATH) ).newGraphDatabase();
         registerShutdownHook( graphDb );
@@ -71,10 +84,16 @@ public class Tgraph {
             throw new IllegalArgumentException("数据库 '" + dbDir.getPath() + "' 不存在");
         }
 
-        // 检查数据库是否正在运行？  不知道是否正确
-        File lockFile = new File(dbDir, "lock");
-        if (lockFile.exists()) {
-            throw new IllegalStateException("数据库正在运行，无法执行备份操作");
+        // 检查数据库是否正在运行？  不知道是否合理
+        // 尝试获取数据库实例
+        try {
+            GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dbDir).newGraphDatabase();
+            // 如果能成功创建连接，说明数据库没有在运行
+            // 立即关闭这个测试连接
+            graphDb.shutdown();
+        } catch (Exception e) {
+            // 如果无法创建连接，可能是因为数据库正在运行
+            throw new IllegalStateException("数据库正在运行，无法执行备份操作", e);
         }
 
         // 创建备份目录

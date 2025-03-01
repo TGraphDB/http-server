@@ -2,7 +2,7 @@ package app;
 
 import io.javalin.Javalin;
 
-import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -25,9 +25,6 @@ import service.SecurityConfig;
 
 // label和dynamiclabel的区别
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.factory.GraphDatabaseFactory;
-
-
 
 public class Application {
     private static UserService userService = new UserService();
@@ -331,15 +328,79 @@ public class Application {
         // 备份数据库
         app.post("/db/data/database/{databaseName}/backup", ctx -> {
             String databaseName = ctx.pathParam("databaseName");
-            tgraph.backupDatabase(databaseName);
-            ctx.status(201);
+            try {
+                tgraph.backupDatabase(databaseName);
+                ctx.status(201);
+            } catch (IllegalStateException e) {
+                // 数据库正在运行的错误处理
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", e.getMessage());
+                error.put("code", "Neo.ClientError.General.DatabaseError");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(409).json(errorResponse);
+            } catch (IllegalArgumentException e) {
+                // 数据库不存在的错误处理
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", e.getMessage());
+                error.put("code", "Neo.ClientError.General.DatabaseNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (IOException e) {
+                // IO错误处理
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "备份数据库时发生错误: " + e.getMessage());
+                error.put("code", "Neo.ClientError.General.IOError");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(500).json(errorResponse);
+            }
         });
 
         // 恢复数据库
         app.post("/db/data/database/{databaseName}/restore", ctx -> {
             String databaseName = ctx.pathParam("databaseName");
-            tgraph.restoreDatabase(databaseName);
-            ctx.status(201);
+            try {
+                tgraph.restoreDatabase(databaseName);
+                ctx.status(201);
+            } catch (IllegalStateException e) {
+                // 数据库正在运行或目标数据库已存在的错误处理
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", e.getMessage());
+                error.put("code", "Neo.ClientError.General.DatabaseError");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(409).json(errorResponse);
+            } catch (IllegalArgumentException e) {
+                // 备份文件不存在的错误处理
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", e.getMessage());
+                error.put("code", "Neo.ClientError.General.BackupNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (IOException e) {
+                // IO错误处理
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "恢复数据库时发生错误: " + e.getMessage());
+                error.put("code", "Neo.ClientError.General.IOError");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(500).json(errorResponse);
+            }
         });
     }
     

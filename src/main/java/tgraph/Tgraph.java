@@ -11,8 +11,6 @@ import java.util.Date;
 
 import net.lingala.zip4j.ZipFile;
 
-import app.Application;
-
 public class Tgraph {
     //private static final String DB_PATH = "target/neo4j-hello-db";
 
@@ -88,18 +86,14 @@ public class Tgraph {
 
         // 检查数据库是否正在运行？  不知道是否合理
         // 尝试获取数据库实例
-        /* 
         try {
             GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dbDir).newGraphDatabase();
             // 如果能成功创建连接，说明数据库没有在运行
             // 立即关闭这个测试连接
             graphDb.shutdown();
         } catch (Exception e) {
-            // 如果无法创建连接，可能是因为数据库正在运行
+            // 如果无法创建连接，是因为数据库正在运行
             throw new IllegalStateException("数据库正在运行，无法执行备份操作", e);
-        }*/
-        if(Application.graphDb != null) {
-            throw new IllegalStateException("数据库正在运行，无法执行备份操作");
         }
 
         // 创建备份目录

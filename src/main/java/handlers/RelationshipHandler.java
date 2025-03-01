@@ -262,17 +262,10 @@ public class RelationshipHandler {
         
         try (Transaction tx = graphDb.beginTx()) {
             Relationship relationship = graphDb.getRelationshipById(relationshipId);
-            if (value.isJsonPrimitive()) {
-                JsonPrimitive primitive = value.getAsJsonPrimitive();
-                if (primitive.isString()) {
-                    relationship.setProperty(propertyKey, primitive.getAsString());
-                } else if (primitive.isNumber()) {
-                    relationship.setProperty(propertyKey, primitive.getAsNumber());
-                } else if (primitive.isBoolean()) {
-                    relationship.setProperty(propertyKey, primitive.getAsBoolean());
+            Object propertyValue = convertJsonElementToPropertyValue(value);
+                if (propertyValue != null) {
+                    relationship.setProperty(propertyKey, propertyValue);
                 }
-            }
-            
             tx.success();
             ctx.status(204);
         }

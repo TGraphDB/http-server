@@ -127,9 +127,7 @@ public class NodeHandler {
                 // 添加节点数据
                 Map<String, Object> data = new HashMap<>();
                 for (String key : node.getPropertyKeys()) {
-                    if (!key.equals("nodeid")) { // 排除nodeid属性
-                        data.put(key, node.getProperty(key));
-                    }
+                    data.put(key, node.getProperty(key));
                 }
                 response.put("data", data);
 

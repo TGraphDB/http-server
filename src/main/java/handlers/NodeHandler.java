@@ -25,9 +25,14 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 public class NodeHandler {
-    private final GraphDatabaseService graphDb;
+    private GraphDatabaseService graphDb;
     
     public NodeHandler(GraphDatabaseService graphDb) {
+        this.graphDb = graphDb;
+    }
+
+    // setGraphDb
+    public void setGraphDb(GraphDatabaseService graphDb) {
         this.graphDb = graphDb;
     }
     

@@ -20,9 +20,14 @@ import org.neo4j.tooling.GlobalGraphOperations;
 import com.google.gson.Gson;
 
 public class LabelHandler {
-    private final GraphDatabaseService graphDb;
+    private GraphDatabaseService graphDb;
     
     public LabelHandler(GraphDatabaseService graphDb) {
+        this.graphDb = graphDb;
+    }
+
+    // setGraphDb
+    public void setGraphDb(GraphDatabaseService graphDb) {
         this.graphDb = graphDb;
     }
 

@@ -15,9 +15,14 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.tooling.GlobalGraphOperations;
 
 public class PropertyHandler {
-    private final GraphDatabaseService graphDb;
+    private GraphDatabaseService graphDb;
     
     public PropertyHandler(GraphDatabaseService graphDb) {
+        this.graphDb = graphDb;
+    }
+
+    // setGraphDb
+    public void setGraphDb(GraphDatabaseService graphDb) {
         this.graphDb = graphDb;
     }
 

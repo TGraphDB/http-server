@@ -38,11 +38,19 @@ public class Application {
     // database不是这样创建的 而应该是通过rest api调用去创建的 可以用一个变量记录当前的user以及当前的数据库
     public static GraphDatabaseService graphDb = null;
 
-     // 创建处理器实例
-     private static RelationshipHandler relationshipHandler = new RelationshipHandler(graphDb);
-     private static NodeHandler nodeHandler = new NodeHandler(graphDb);
-     private static LabelHandler labelHandler = new LabelHandler(graphDb);
-     private static PropertyHandler propertyHandler = new PropertyHandler(graphDb);
+    // 创建处理器实例
+    private static RelationshipHandler relationshipHandler = new RelationshipHandler(graphDb);
+    private static NodeHandler nodeHandler = new NodeHandler(graphDb);
+    private static LabelHandler labelHandler = new LabelHandler(graphDb);
+    private static PropertyHandler propertyHandler = new PropertyHandler(graphDb);
+
+    // 在创建或启动数据库后更新所有handler的graphDb
+    private static void updateHandlers(GraphDatabaseService newGraphDb) {
+        relationshipHandler.setGraphDb(newGraphDb);
+        nodeHandler.setGraphDb(newGraphDb);
+        labelHandler.setGraphDb(newGraphDb);
+        propertyHandler.setGraphDb(newGraphDb);
+    }
     
     public static void main(String[] args) {
 
@@ -279,6 +287,7 @@ public class Application {
                 return;
             }
             graphDb = tgraph.createDb(databaseName);
+            updateHandlers(graphDb); // 更新handlers
             ctx.status(201);
         });
 
@@ -297,6 +306,7 @@ public class Application {
                 return;
             }
             graphDb = tgraph.startDb(databaseName);
+            updateHandlers(graphDb); // 更新handlers
             ctx.status(201);
         });
 
@@ -322,6 +332,7 @@ public class Application {
         app.post("/db/data/database", ctx -> {
             tgraph.shutDown(graphDb);
             graphDb = null;
+            updateHandlers(null); // 清空handlers中的graphDb
             ctx.status(204);
         });
 

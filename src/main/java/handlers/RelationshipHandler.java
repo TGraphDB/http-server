@@ -13,9 +13,14 @@ import com.google.gson.JsonPrimitive;
 import java.util.*;
 
 public class RelationshipHandler {
-    private final GraphDatabaseService graphDb;
+    private GraphDatabaseService graphDb;
     
     public RelationshipHandler(GraphDatabaseService graphDb) {
+        this.graphDb = graphDb;
+    }
+
+    // setGraphDb
+    public void setGraphDb(GraphDatabaseService graphDb) {
         this.graphDb = graphDb;
     }
     

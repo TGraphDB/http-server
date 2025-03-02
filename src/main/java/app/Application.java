@@ -191,8 +191,7 @@ public class Application {
         // 删除节点API
         app.delete("/db/data/node/{id}", nodeHandler::deleteNode);
 
-        // 通过ID获取关系API
-        app.get("/db/data/relationship/{id}", relationshipHandler::getRelationship);
+        // 移动至下方
 
         // 创建关系API
         app.post("/db/data/node/{id}/relationships", relationshipHandler::createRelationship);
@@ -224,8 +223,26 @@ public class Application {
         // 获取指定类型的关系 tx.success()是在try里，没有包含在整个transaction里
         app.get("/db/data/node/{id}/relationships/all/{typeString}", relationshipHandler::getRelationshipsByTypes);
 
-        // 获取关系类型
+        // 获取关系类型 和下面的产生路径冲突 将types识别成了{id} 将将具体路径放在模式匹配的路径前面可以确保它会被优先匹配
+        /*
+        ai说以下也会冲突
+            // 先定义具体路径
+            app.get("/db/data/labels", labelHandler::getAllLabels);
+
+            // 再定义参数路径
+            app.get("/db/data/label/{labelName}/nodes", labelHandler::getNodesWithLabel);
+        */
+
+        /*
+            1. /db/data/relationship/types 是一个具体的路径
+            2. /db/data/relationship/{id} 是一个模式匹配的路径
+            3. 如果不调整顺序，types 会被错误地识别为 {id} 的值
+            4. 将具体路径放在前面可以确保它会被优先匹配
+        */
         app.get("/db/data/relationship/types", relationshipHandler::getRelationshipTypes);
+
+        // 通过ID获取关系API
+        app.get("/db/data/relationship/{id}", relationshipHandler::getRelationship);
 
         // 在节点上设置单个属性
         app.put("/db/data/node/{id}/properties/{key}", nodeHandler::setProperty);

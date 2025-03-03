@@ -19,7 +19,7 @@ import service.UserService;
 import service.User;
 import util.PasswordUtil;
 import service.SecurityConfig;
-import config.ServerConfig;
+import util.ServerConfig;
 
 // label和dynamiclabel的区别
 

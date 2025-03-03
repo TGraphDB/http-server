@@ -16,41 +16,22 @@ import handlers.PropertyHandler;
 // 着重了解一下org.neo4j.tooling.GlobalGraphOperations
 
 import service.UserService;
-import tgraph.Tgraph;
 import service.User;
 import util.PasswordUtil;
 import service.SecurityConfig;
 
 // label和dynamiclabel的区别
-import org.neo4j.graphdb.GraphDatabaseService;
 
 public class Application {
     private static UserService userService = new UserService();
-    private static Tgraph tgraph = new Tgraph();
-    /*
-    1. 当应用程序启动时，Application 类被加载
-    2. 类加载时会执行静态字段的初始化
-    3. tgraph.startDb() 被调用，启动数据库
-    4. 数据库实例被赋值给 graphDb 静态字段
-     */
-    // database不是这样创建的 而应该是通过rest api调用去创建的 可以用一个变量记录当前的user以及当前的数据库
-    public static GraphDatabaseService graphDb = null;
 
     // 创建处理器实例
-    private static RelationshipHandler relationshipHandler = new RelationshipHandler(graphDb);
-    private static NodeHandler nodeHandler = new NodeHandler(graphDb);
-    private static LabelHandler labelHandler = new LabelHandler(graphDb);
-    private static PropertyHandler propertyHandler = new PropertyHandler(graphDb);
-    private static TgraphHandler TgraphHandler = new TgraphHandler(graphDb, tgraph);
-
-    // 在创建或启动数据库后更新所有handler的graphDb
-    public static void updateHandlers(GraphDatabaseService newGraphDb) {
-        relationshipHandler.setGraphDb(newGraphDb);
-        nodeHandler.setGraphDb(newGraphDb);
-        labelHandler.setGraphDb(newGraphDb);
-        propertyHandler.setGraphDb(newGraphDb);
-        TgraphHandler.setGraphDb(newGraphDb);
-    }
+    private static RelationshipHandler relationshipHandler = new RelationshipHandler();
+    private static NodeHandler nodeHandler = new NodeHandler();
+    private static LabelHandler labelHandler = new LabelHandler();
+    private static PropertyHandler propertyHandler = new PropertyHandler();
+    private static TgraphHandler TgraphHandler = new TgraphHandler();
+    
     
     public static void main(String[] args) {
 

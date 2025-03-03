@@ -6,31 +6,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.neo4j.graphdb.GraphDatabaseService;
-
 import io.javalin.http.Context;
 
 import tgraph.Tgraph;
-import app.Application;
 
 public class TgraphHandler {
-    private GraphDatabaseService graphDb;
-    private final Tgraph tgraph; // 可以是final的
+    //private GraphDatabaseService graphDb;
+    //private final Tgraph tgraph; // 可以是final的
     
-    public TgraphHandler(GraphDatabaseService graphDb, Tgraph tgraph) {
-        this.graphDb = graphDb;
-        this.tgraph = tgraph;
+    public TgraphHandler() {
     }
-
-    // setGraphDb
-    public void setGraphDb(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
-    }
+    
     
     // 创建数据库
     public void createDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        if (graphDb != null) {
+        if (Tgraph.graphDb != null) {
             Map<String, Object> errorResponse = new HashMap<>();
             List<Map<String, String>> errors = new ArrayList<>();
             Map<String, String> error = new HashMap<>();
@@ -42,19 +33,18 @@ public class TgraphHandler {
             return;
         }
         try {
-            graphDb = tgraph.createDb(databaseName);
+            Tgraph.graphDb = Tgraph.createDb(databaseName);
         } catch (Exception e) {
             // TODO: handle exception
             e.printStackTrace();
         }
-        Application.updateHandlers(graphDb); // 更新handlers
         ctx.status(201);
     }
 
     // 启动数据库
     public void startDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        if (graphDb != null) {
+        if (Tgraph.graphDb != null) {
             Map<String, Object> errorResponse = new HashMap<>();
             List<Map<String, String>> errors = new ArrayList<>();
             Map<String, String> error = new HashMap<>();
@@ -65,15 +55,14 @@ public class TgraphHandler {
             ctx.status(409).json(errorResponse); // 409 Conflict
             return;
         }
-        graphDb = tgraph.startDb(databaseName);
-        Application.updateHandlers(graphDb); // 更新handlers
+        Tgraph.graphDb = Tgraph.startDb(databaseName);
         ctx.status(201);
     }
 
     // 删除数据库
     public void deleteDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        boolean isDelete = tgraph.deleteDb(databaseName);
+        boolean isDelete = Tgraph.deleteDb(databaseName);
         if (isDelete) {
             ctx.status(204);
         } else {
@@ -90,16 +79,15 @@ public class TgraphHandler {
 
     // 关闭数据库 由于一个时间只能有一个数据库被打开 所以不用传入{databaseName}
     public void shutdownDatabase(Context ctx) {
-        tgraph.shutDown(graphDb);
-        graphDb = null;
-        Application.updateHandlers(null); // 清空handlers中的graphDb
+        Tgraph.shutDown(Tgraph.graphDb);
+        Tgraph.graphDb = null;
         ctx.status(204);
     }
 
     public void backupDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
         try {
-            tgraph.backupDatabase(databaseName);
+            Tgraph.backupDatabase(databaseName);
             ctx.status(201);
         } catch (IllegalStateException e) {
             // 数据库正在运行的错误处理
@@ -137,7 +125,7 @@ public class TgraphHandler {
     public void restoreDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
         try {
-            tgraph.restoreDatabase(databaseName);
+            Tgraph.restoreDatabase(databaseName);
             ctx.status(201);
         } catch (IllegalStateException e) {
             // 数据库正在运行或目标数据库已存在的错误处理

@@ -1,6 +1,8 @@
 package handlers;
 
 import io.javalin.http.Context;
+import tgraph.Tgraph;
+
 import org.neo4j.graphdb.*;
 import org.neo4j.tooling.GlobalGraphOperations;
 
@@ -13,23 +15,18 @@ import com.google.gson.JsonPrimitive;
 import java.util.*;
 
 public class RelationshipHandler {
-    private GraphDatabaseService graphDb;
+    // private GraphDatabaseService graphDb;
     
-    public RelationshipHandler(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
-    }
-
-    // setGraphDb
-    public void setGraphDb(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
+    public RelationshipHandler() {
+        
     }
     
     public void getRelationship(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
                 
                 Map<String, Object> response = new HashMap<>();
                 String baseUrl = "http://localhost:" + ctx.port();
@@ -92,11 +89,11 @@ public class RelationshipHandler {
             }
         }
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
                 // 获取起始和结束节点
-                Node startNode = graphDb.getNodeById(startNodeId);
-                Node endNode = graphDb.getNodeById(endNodeId);
+                Node startNode = Tgraph.graphDb.getNodeById(startNodeId);
+                Node endNode = Tgraph.graphDb.getNodeById(endNodeId);
                 
                 // 创建关系
                 Relationship relationship = startNode.createRelationshipTo(endNode, new DynamicRelationshipType(relationType));
@@ -151,9 +148,9 @@ public class RelationshipHandler {
     public void deleteRelationship(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
                 relationship.delete();
                 ctx.status(204);
                 tx.success();
@@ -174,9 +171,9 @@ public class RelationshipHandler {
     public void getProperties(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
                 
                 // 构建属性Map
                 Map<String, Object> properties = new HashMap<>();
@@ -204,8 +201,8 @@ public class RelationshipHandler {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         JsonObject properties = new Gson().fromJson(ctx.body(), JsonObject.class);
         
-        try (Transaction tx = graphDb.beginTx()) {
-            Relationship relationship = graphDb.getRelationshipById(relationshipId);
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
             
             // 移除所有现有属性
             for (String key : relationship.getPropertyKeys()) {
@@ -249,8 +246,8 @@ public class RelationshipHandler {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = graphDb.beginTx()) {
-            Relationship relationship = graphDb.getRelationshipById(relationshipId);
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
             if (relationship.hasProperty(propertyKey)) {
                 Object value = relationship.getProperty(propertyKey);
                 tx.success();
@@ -265,8 +262,8 @@ public class RelationshipHandler {
         String propertyKey = ctx.pathParam("key");
         JsonElement value = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = graphDb.beginTx()) {
-            Relationship relationship = graphDb.getRelationshipById(relationshipId);
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
             Object propertyValue = convertJsonElementToPropertyValue(value);
                 if (propertyValue != null) {
                     relationship.setProperty(propertyKey, propertyValue);
@@ -281,8 +278,8 @@ public class RelationshipHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String baseUrl = "http://localhost:" + ctx.port();
         
-        try (Transaction tx = graphDb.beginTx()) {
-                Node node = graphDb.getNodeById(nodeId);
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
                 
                 for (Relationship rel : node.getRelationships()) {
@@ -317,9 +314,9 @@ public class RelationshipHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String baseUrl = "http://localhost:" + ctx.port();
 
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
 
                 // 遍历传入(in)关系
@@ -363,9 +360,9 @@ public class RelationshipHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String baseUrl = "http://localhost:" + ctx.port();
 
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
 
                 // 遍历传出(out)关系
@@ -411,9 +408,9 @@ public class RelationshipHandler {
         String typesParam = ctx.pathParam("typeString"); 
         String baseUrl = "http://localhost:" + ctx.port();
     
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
     
                 // 将 typesParam 按 '&' 切分并转换成 RelationshipType[]
@@ -462,9 +459,9 @@ public class RelationshipHandler {
 
     // 获取关系类型
     public void getRelationshipTypes(Context ctx) {
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             // 使用 GlobalGraphOperations 获取所有关系类型
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(graphDb);
+            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
             Set<String> typeSet = new HashSet<>();
             for (RelationshipType type : ggo.getAllRelationshipTypes()) {
                 typeSet.add(type.name());
@@ -483,9 +480,9 @@ public class RelationshipHandler {
     public void deleteAllProperties(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
                 
                 // 移除所有属性
                 for (String key : relationship.getPropertyKeys()) {
@@ -513,9 +510,9 @@ public class RelationshipHandler {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Relationship relationship = graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
                 
                 // 检查属性是否存在
                 if (relationship.hasProperty(propertyKey)) {

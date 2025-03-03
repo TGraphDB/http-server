@@ -1,6 +1,7 @@
 package handlers;
 
 import io.javalin.http.Context;
+import tgraph.Tgraph;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,16 +26,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 public class NodeHandler {
-    private GraphDatabaseService graphDb;
+    // private GraphDatabaseService graphDb;
     
-    public NodeHandler(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
+    public NodeHandler() {
     }
 
-    // setGraphDb
-    public void setGraphDb(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
-    }
     
     // 创建节点API
     public void createNode(Context ctx) {
@@ -51,8 +47,8 @@ public class NodeHandler {
         long nodeid = 0;
 
         // 创建节点（并设置属性）
-        try (Transaction tx = graphDb.beginTx()) {
-            Node node = graphDb.createNode();
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            Node node = Tgraph.graphDb.createNode();
             nodeid = node.getId();
             // 设置请求中的所有属性
             for (Map.Entry<String, Object> entry : properties.entrySet()) {
@@ -100,10 +96,10 @@ public class NodeHandler {
     public void getNode(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             // 通过nodeid属性查找节点
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 Map<String, Object> response = new HashMap<>();
                 String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeId;
 
@@ -157,9 +153,9 @@ public class NodeHandler {
     public void deleteNode(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 检查节点是否有关系
                 if (node.hasRelationship()) {
@@ -200,9 +196,9 @@ public class NodeHandler {
         String propertyKey = ctx.pathParam("key");
         JsonElement value = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 使用通用转换方法处理属性值
                 Object propertyValue = convertJsonElementToPropertyValue(value);
@@ -231,9 +227,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         JsonObject properties = new Gson().fromJson(ctx.body(), JsonObject.class);
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 移除所有现有属性
                 for (String key : node.getPropertyKeys()) {
@@ -268,9 +264,9 @@ public class NodeHandler {
     public void getAllProperties(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 构建属性Map
                 Map<String, Object> properties = new HashMap<>();
@@ -299,9 +295,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 检查属性是否存在
                 if (node.hasProperty(propertyKey)) {
@@ -336,9 +332,9 @@ public class NodeHandler {
     public void deleteAllProperties(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 移除所有属性
                 for (String key : node.getPropertyKeys()) {
@@ -366,9 +362,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 检查属性是否存在
                 if (node.hasProperty(propertyKey)) {
@@ -407,9 +403,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 if (labelElement.isJsonArray()) {
                     // 处理多个标签
@@ -444,9 +440,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 移除所有现有标签 （有可能没有label，要注意）
                 for (Label label : node.getLabels()) {
@@ -498,9 +494,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String labelName = ctx.pathParam("labelName");
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 创建标签对象
                 Label label = DynamicLabel.label(labelName);
@@ -528,9 +524,9 @@ public class NodeHandler {
     public void getAllLabels(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 
                 // 收集节点的所有标签
                 List<String> labels = new ArrayList<>();
@@ -572,9 +568,9 @@ public class NodeHandler {
             types = dirAndTypes[1];
         }
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
-                Node node = graphDb.getNodeById(nodeId);
+                Node node = Tgraph.graphDb.getNodeById(nodeId);
                 int degree = 0;
                 
                 // 根据不同场景计算度数

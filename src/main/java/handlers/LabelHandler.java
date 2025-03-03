@@ -1,6 +1,7 @@
 package handlers;
 
 import io.javalin.http.Context;
+import tgraph.Tgraph;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,7 +12,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.neo4j.graphdb.DynamicLabel;
-import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
@@ -20,15 +20,9 @@ import org.neo4j.tooling.GlobalGraphOperations;
 import com.google.gson.Gson;
 
 public class LabelHandler {
-    private GraphDatabaseService graphDb;
+    //private GraphDatabaseService graphDb;
     
-    public LabelHandler(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
-    }
-
-    // setGraphDb
-    public void setGraphDb(GraphDatabaseService graphDb) {
-        this.graphDb = graphDb;
+    public LabelHandler() {
     }
 
     // 获取具有特定标签的所有节点，支持可选的属性过滤
@@ -36,13 +30,13 @@ public class LabelHandler {
         String labelName = ctx.pathParam("labelName");
         String baseUrl = "http://localhost:" + ctx.port();
         
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
                 Label label = DynamicLabel.label(labelName);
                 List<Map<String, Object>> nodes = new ArrayList<>();
                 
                 // 获取所有具有指定标签的节点
-                GlobalGraphOperations ggo = GlobalGraphOperations.at(graphDb);
+                GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
                 Iterable<Node> labeledNodes = ggo.getAllNodesWithLabel(label);
                 
                 // 检查是否有属性查询参数
@@ -121,9 +115,9 @@ public class LabelHandler {
 
     // 列出所有标签
     public void getAllLabels(Context ctx) {
-        try (Transaction tx = graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
             Set<String> labels = new HashSet<>();
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(graphDb);
+            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
             
             // 检查是否需要只返回正在使用的标签
             boolean onlyInUse = !("0".equals(ctx.queryParam("in_use")));

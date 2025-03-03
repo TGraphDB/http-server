@@ -19,6 +19,7 @@ import service.UserService;
 import service.User;
 import util.PasswordUtil;
 import service.SecurityConfig;
+import config.ServerConfig;
 
 // label和dynamiclabel的区别
 
@@ -34,7 +35,19 @@ public class Application {
     
     
     public static void main(String[] args) {
-
+        // 加载配置文件
+        String configPath = System.getProperty("config.path", "config/server-config.properties");
+        ServerConfig.loadPropertiesConfig(configPath);
+        
+        // 应用系统级配置
+        ServerConfig.applyConfig();
+        
+        // 获取配置的端口
+        int port = ServerConfig.getInt("org.neo4j.server.webserver.port", 7474);
+        String host = ServerConfig.getString("org.neo4j.server.webserver.address", "0.0.0.0");
+        int maxThreads = ServerConfig.getInt("org.neo4j.server.webserver.maxthreads", 200);
+        
+        // 创建Javalin应用
         Javalin app = Javalin.create(config -> {
             config.accessManager((handler, ctx, permittedRoles) -> {
                 // 如果认证被禁用，直接允许访问
@@ -102,7 +115,7 @@ public class Application {
                     ));
                 }
             });
-        }).start(7474);
+        }).start(host, port);
 
         // 列出所有属性键API
         app.get("/db/data/propertykeys", propertyHandler::getAllPropertyKeys);

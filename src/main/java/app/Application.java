@@ -21,6 +21,9 @@ import util.PasswordUtil;
 import service.SecurityConfig;
 import util.ServerConfig;
 
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
+
 // label和dynamiclabel的区别
 
 public class Application {
@@ -46,6 +49,7 @@ public class Application {
         int maxThreads = ServerConfig.getInt("org.neo4j.server.webserver.maxthreads", 200);
         boolean httpLogEnabled = ServerConfig.getBoolean("org.neo4j.server.http.log.enabled", true);
         int transactionTimeout = ServerConfig.getInt("org.neo4j.server.transaction.timeout", 60);
+        // 下一步是应用maxThreads和transactionTimeout参数到代码中
 
         // 创建Javalin应用
         Javalin app = Javalin.create(config -> {
@@ -54,6 +58,13 @@ public class Application {
             if (httpLogEnabled) {
                 config.enableDevLogging();
             }
+
+            // 设置最大线程数
+            config.server(() -> {
+                QueuedThreadPool threadPool = new QueuedThreadPool(maxThreads);
+                Server server = new Server(threadPool); // 使用构造函数设置线程池
+                return server;
+            });
 
             config.accessManager((handler, ctx, permittedRoles) -> {
                 // 如果认证被禁用，直接允许访问
@@ -122,6 +133,22 @@ public class Application {
                 }
             });
         }).start(host, port);
+
+        // 设置事务超时时间
+        // 添加中间件以处理事务超时
+        app.before(ctx -> {
+            ctx.attribute("startTime", System.currentTimeMillis());
+        });
+        
+        app.after(ctx -> {
+            Long startTime = ctx.attribute("startTime");
+            if (startTime != null) {
+                long endTime = System.currentTimeMillis();
+                if (endTime - startTime > transactionTimeout * 1000) {
+                    ctx.status(408).json(new ErrorResponse("Request timeout", "Neo.ClientError.RequestTimeout"));
+                }
+            }
+        });
 
         // 列出所有属性键API
         app.get("/db/data/propertykeys", propertyHandler::getAllPropertyKeys);

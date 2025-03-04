@@ -19,30 +19,35 @@ public class ServerConfig {
         config.put("org.neo4j.server.http.log.enabled", true);
     }
     
+    
     /**
-     * 加载Properties配置文件
+     * 加载并应用配置
      */
-    public static void loadPropertiesConfig(String path) {
+    public static void loadAndApplyConfig(String path) {
+        // 加载配置
         try (InputStream input = new FileInputStream(path)) {
             Properties props = new Properties();
             props.load(input);
             
-            // 转换属性值为适当的类型
+            // 转换并存储属性值
             for (String key : props.stringPropertyNames()) {
                 String value = props.getProperty(key);
                 
-                // 尝试转换为数字或布尔值
+                // 转换值类型并存储
                 if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
                     config.put(key, Boolean.parseBoolean(value));
                 } else {
                     try {
                         config.put(key, Integer.parseInt(value));
                     } catch (NumberFormatException e) {
-                        config.put(key, value); // 保持为字符串
+                        config.put(key, value);
                     }
                 }
+                
+                // 直接应用到系统属性
+                System.setProperty(key, value);
             }
-            System.out.println("已加载Properties配置文件: " + path);
+            System.out.println("已加载并应用配置文件: " + path);
         } catch (IOException e) {
             System.err.println("无法加载配置文件: " + path);
             e.printStackTrace();
@@ -84,14 +89,5 @@ public class ServerConfig {
             return (Boolean) value;
         }
         return defaultValue;
-    }
-    
-    /**
-     * 应用配置到系统
-     */
-    public static void applyConfig() {
-        // 可以在这里添加系统级别的配置应用
-        System.setProperty("org.neo4j.server.transaction.timeout", 
-                           getString("org.neo4j.server.transaction.timeout", "60"));
     }
 }

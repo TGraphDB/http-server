@@ -37,18 +37,24 @@ public class Application {
     public static void main(String[] args) {
         // 加载配置文件
         String configPath = System.getProperty("config.path", "config/server-config.properties");
-        ServerConfig.loadPropertiesConfig(configPath);
+        ServerConfig.loadAndApplyConfig(configPath);
         
-        // 应用系统级配置
-        ServerConfig.applyConfig();
         
         // 获取配置的端口
         int port = ServerConfig.getInt("org.neo4j.server.webserver.port", 7474);
         String host = ServerConfig.getString("org.neo4j.server.webserver.address", "0.0.0.0");
         int maxThreads = ServerConfig.getInt("org.neo4j.server.webserver.maxthreads", 200);
-        
+        boolean httpLogEnabled = ServerConfig.getBoolean("org.neo4j.server.http.log.enabled", true);
+        int transactionTimeout = ServerConfig.getInt("org.neo4j.server.transaction.timeout", 60);
+
         // 创建Javalin应用
         Javalin app = Javalin.create(config -> {
+
+            // 如果启用HTTP日志，则配置Javalin日志
+            if (httpLogEnabled) {
+                config.enableDevLogging();
+            }
+
             config.accessManager((handler, ctx, permittedRoles) -> {
                 // 如果认证被禁用，直接允许访问
                 if (!SecurityConfig.isAuthEnabled()) {

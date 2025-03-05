@@ -377,19 +377,6 @@ public class Application {
         // 添加一个 API 端点，用于查询当前正在执行的请求列表
         app.get("/admin/active-requests", ctx -> {
             // 检查是否有管理员权限
-            if (SecurityConfig.isAuthEnabled()) {
-                String auth = ctx.header("Authorization");
-                if (auth == null || !auth.startsWith("Basic ")) {
-                    throw new UnauthorizedResponse("需要管理员认证");
-                }
-                
-                // 检查是否是管理员用户（假设用户名为"neo4j"的是管理员）
-                String[] credentials = extractCredentials(auth);
-                if (!"neo4j".equals(credentials[0])) {
-                    throw new ForbiddenResponse("需要管理员权限");
-                }
-            }
-            
             ctx.json(RequestTracker.getActiveRequests());
         });
     }

@@ -6,6 +6,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.UUID;
 
 import handlers.LabelHandler;
 import handlers.NodeHandler;
@@ -23,6 +24,8 @@ import util.ServerConfig;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.UnauthorizedResponse;
 
 // label和dynamiclabel的区别
 
@@ -351,6 +354,44 @@ public class Application {
 
         // 恢复数据库
         app.post("/db/data/database/{databaseName}/restore", TgraphHandler::restoreDatabase);
+
+        // 在 Javalin.create 配置中添加
+        app.before(ctx -> {
+            // 为每个请求生成唯一 ID
+            String requestId = UUID.randomUUID().toString();
+            // 存储请求 ID 在上下文中，以便后续使用
+            ctx.attribute("requestId", requestId);
+            // 记录请求开始
+            RequestTracker.startRequest(requestId, ctx.path(), ctx.method());
+        });
+
+        app.after(ctx -> {
+            // 获取请求 ID
+            String requestId = ctx.attribute("requestId");
+            // 记录请求结束
+            if (requestId != null) {
+                RequestTracker.endRequest(requestId);
+            }
+        });
+
+        // 添加一个 API 端点，用于查询当前正在执行的请求列表
+        app.get("/admin/active-requests", ctx -> {
+            // 检查是否有管理员权限
+            if (SecurityConfig.isAuthEnabled()) {
+                String auth = ctx.header("Authorization");
+                if (auth == null || !auth.startsWith("Basic ")) {
+                    throw new UnauthorizedResponse("需要管理员认证");
+                }
+                
+                // 检查是否是管理员用户（假设用户名为"neo4j"的是管理员）
+                String[] credentials = extractCredentials(auth);
+                if (!"neo4j".equals(credentials[0])) {
+                    throw new ForbiddenResponse("需要管理员权限");
+                }
+            }
+            
+            ctx.json(RequestTracker.getActiveRequests());
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {

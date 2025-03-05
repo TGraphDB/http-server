@@ -83,6 +83,7 @@ public class Application {
                 return server;
             });
 
+            // 可以考虑把这些放到before里面
             config.accessManager((handler, ctx, permittedRoles) -> {
                 // 如果认证被禁用，直接允许访问
                 if (!SecurityConfig.isAuthEnabled()) {

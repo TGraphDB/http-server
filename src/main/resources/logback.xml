@@ -1,6 +1,6 @@
 <configuration>
     <!-- 控制台输出器 -->
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
@@ -8,10 +8,10 @@
 
     <!-- 设置Jetty和Javalin日志级别 -->
     <logger name="org.eclipse.jetty" level="WARN" />
-    <logger name="io.javalin" level="WARN" />
+    <logger name="io.javalin" level="DEBUG" />
     
     <!-- 根日志级别 -->
     <root level="INFO">
-        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="STDOUT" />
     </root>
 </configuration>

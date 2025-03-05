@@ -59,6 +59,23 @@ public class Application {
                 config.enableDevLogging();
             }
 
+            // 配置 CORS
+            config.enableCorsForAllOrigins(); // 允许所有源的跨域请求
+
+            // 或者，针对特定域名配置 CORS
+            // config.enableCorsForOrigin("http://localhost:3000", "https://example.com");
+
+            // 更细粒度的 CORS 配置
+            // config.enableCorsForOrigin("http://localhost:3000")
+            //       .allowCredentials()
+            //       .allowHeader("Content-Type")
+            //       .allowHeader("Authorization")
+            //       .allowMethod("GET")
+            //       .allowMethod("POST")
+            //       .allowMethod("DELETE")
+            //       .allowMethod("PUT")
+            //       .allowMethod("PATCH");
+
             // 设置最大线程数
             config.server(() -> {
                 QueuedThreadPool threadPool = new QueuedThreadPool(maxThreads);

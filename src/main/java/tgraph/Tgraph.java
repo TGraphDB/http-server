@@ -13,7 +13,7 @@ import net.lingala.zip4j.ZipFile;
 
 public class Tgraph {
     // 静态全局变量，只需要一个实例
-    private static final String TARGET_DIR = "target";
+    public static final String TARGET_DIR = "target";
 
     public static GraphDatabaseService graphDb = null;
     

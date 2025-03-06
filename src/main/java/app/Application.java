@@ -355,6 +355,12 @@ public class Application {
         // 恢复数据库
         app.post("/db/data/database/{databaseName}/restore", TgraphHandler::restoreDatabase);
 
+        // 获取数据库路径
+        app.get("/db/data/database/{databaseName}/path", TgraphHandler::getDatabasePath);
+
+        // 获取数据库状态
+        app.get("/db/data/database/status", TgraphHandler::getDatabaseStatus);
+
         // 在 Javalin.create 配置中添加
         app.before(ctx -> {
             // 为每个请求生成唯一 ID

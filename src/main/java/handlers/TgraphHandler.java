@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
+
 import io.javalin.http.Context;
 import tgraph.Tgraph;
 
@@ -244,5 +247,29 @@ public class TgraphHandler {
             errorResponse.put("errors", errors);
             ctx.status(404).json(errorResponse);
         }
-    }                                 
+    }                    
+    
+    // 获取数据库状态
+    public void getDatabaseStatus(Context ctx) {
+        String databaseName = ctx.pathParam("databaseName");
+        String dbDir = new File(Tgraph.TARGET_DIR, databaseName).getPath();
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // 尝试打开数据库
+            GraphDatabaseService graphDb = new GraphDatabaseFactory()
+                .newEmbeddedDatabaseBuilder(dbDir)
+                .newGraphDatabase();
+            // 能成功打开说明数据库没有被其他进程使用（关闭状态）
+            graphDb.shutdown();
+            
+            // 返回关闭状态
+            response.put("status", "stopped");
+            ctx.status(200).json(response);
+        } catch (Exception e) {
+            // 捕获异常意味着数据库可能正在被其他进程使用（启动状态）
+            response.put("status", "running");
+            ctx.status(200).json(response);
+        }
+    }
 }

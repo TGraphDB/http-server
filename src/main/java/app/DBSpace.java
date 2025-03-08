@@ -36,7 +36,9 @@ public class DBSpace {
             // 获取日志文件大小
             File logFile = new File(dbPath, "messages.log");
             long logSize = logFile.exists() ? logFile.length() : 0;
-            
+            File httpLogFile = new File(TARGET_DIR, "logs" + File.separator + username + File.separator + "console.log");
+            long httpLogSize = httpLogFile.exists() ? httpLogFile.length() : 0;
+
             // 为统计结果添加单位
             Map<String, Object> formattedStatsMap = new HashMap<>();
             for (Map.Entry<String, Object> entry : statsMap.entrySet()) {
@@ -50,6 +52,7 @@ public class DBSpace {
             
             // 添加日志文件大小（带单位）
             formattedStatsMap.put("tgrapg_log", formatFileSize(logSize));
+            formattedStatsMap.put("http_log", formatFileSize(httpLogSize));
             
             response.put("space_statistics", formattedStatsMap);
             response.put("db_path", dbPath);

@@ -6,7 +6,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.List;
 import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 
@@ -22,6 +21,7 @@ import handlers.UserLogHandler;
 import service.UserService;
 import service.User;
 import service.SessionManager;
+import service.SystemMonitorService;
 import util.PasswordUtil;
 import service.SecurityConfig;
 import util.ServerConfig;
@@ -43,6 +43,7 @@ public class Application {
     private static PropertyHandler propertyHandler = new PropertyHandler();
     private static TgraphHandler TgraphHandler = new TgraphHandler();
     private static UserLogHandler userLogHandler = new UserLogHandler();
+    private static SystemMonitorService systemMonitorService = new SystemMonitorService();
     
     
     public static void main(String[] args) {
@@ -105,7 +106,8 @@ public class Application {
                 // 公共路径无需认证
                 if (ctx.path().startsWith("/user/login") || 
                     ctx.path().startsWith("/user/logout") || 
-                    ctx.path().startsWith("/user/register")) {
+                    ctx.path().startsWith("/user/register") ||
+                    ctx.path().startsWith("/system/resources")) {
                     handler.handle(ctx);
                     return;
                 }
@@ -470,6 +472,18 @@ public class Application {
         app.get("/db/manage/server/space", ctx -> {
             Map<String, Object> response = DBSpace.getSpaceStatsResponse();
             ctx.status(200).json(response);
+        });
+
+        // 添加系统资源监控API
+        app.get("/system/resources", ctx -> {
+            Map<String, Object> resources = systemMonitorService.getSystemResources();
+            // 格式化CPU使用率为百分比字符串
+            Double procCpu = (Double)resources.get("processCpuLoad");
+            Double sysCpu = (Double)resources.get("systemCpuLoad");
+            resources.put("processCpuLoad", String.format("%.2f%%", procCpu * 100));
+            resources.put("systemCpuLoad", String.format("%.2f%%", sysCpu * 100));
+            
+            ctx.status(200).json(resources);
         });
 
         // 添加用户日志查看API

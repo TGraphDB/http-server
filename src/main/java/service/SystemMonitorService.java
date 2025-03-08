@@ -1,0 +1,51 @@
+package service;
+
+import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 系统监控服务，提供CPU和内存使用情况
+ */
+public class SystemMonitorService {
+    
+    private final Runtime runtime = Runtime.getRuntime();
+    private final OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+    
+    /**
+     * 获取系统资源使用情况
+     * @return 包含CPU和内存使用情况的Map
+     */
+    public Map<String, Object> getSystemResources() {
+        Map<String, Object> resources = new HashMap<>();
+        
+        // 获取内存使用情况（以字节为单位）
+        long totalMemory = runtime.totalMemory();
+        long freeMemory = runtime.freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        
+        // 获取CPU使用情况
+        double processCpuLoad = 0;
+        double systemCpuLoad = 0;
+        
+        // 尝试获取CPU负载
+        if (osBean instanceof com.sun.management.OperatingSystemMXBean) {
+            com.sun.management.OperatingSystemMXBean sunOsBean = (com.sun.management.OperatingSystemMXBean) osBean;
+            processCpuLoad = sunOsBean.getProcessCpuLoad();
+            systemCpuLoad = sunOsBean.getSystemCpuLoad();
+        }
+        
+        // 内存信息 (MB)
+        resources.put("totalMemory", totalMemory / (1024 * 1024));
+        resources.put("usedMemory", usedMemory / (1024 * 1024));
+        resources.put("freeMemory", freeMemory / (1024 * 1024));
+        
+        // CPU信息
+        resources.put("processCpuLoad", processCpuLoad);
+        resources.put("systemCpuLoad", systemCpuLoad);
+        resources.put("availableProcessors", runtime.availableProcessors());
+        
+        return resources;
+    }
+} 

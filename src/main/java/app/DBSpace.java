@@ -15,6 +15,7 @@ import com.google.gson.JsonObject;
 public class DBSpace {
     
     private static final String DB_PATH = "target/neo4j-hello-db"; // 默认数据库路径
+    private static final String TARGET_DIR = "target"; // 目标目录
     private static final Gson gson = new Gson();
     
     /**
@@ -53,6 +54,49 @@ public class DBSpace {
         }
         
         return response;
+    }
+
+    /**
+     * 获取用户日志文件大小的API响应
+     * @param username 用户名
+     * @return 包含统计信息的Map
+     */
+    public static Map<String, Object> getUserLogsSizeResponse(String username) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // 获取日志目录
+            File logsDir = new File(TARGET_DIR + File.separator + "logs" + File.separator + username);
+            
+            // 计算日志信息
+            JsonObject logStatsJson = calculateLogStats(logsDir, username);
+            
+            // 将JsonObject转换为Map
+            Map<String, Object> logsStats = gson.fromJson(logStatsJson.toString(), Map.class);
+            
+            // 创建返回结构
+            Map<String, Object> statistics = new HashMap<>();
+            statistics.put("logs_stats", logsStats);
+            statistics.put("logs_path", TARGET_DIR + "/logs/" + username);
+            
+            response.put("logs_statistics", statistics);
+        } catch (Exception e) {
+            response.put("error", "无法获取日志统计信息: " + e.getMessage());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * 格式化字节大小为可读形式
+     * @param size 字节大小
+     * @return 格式化后的大小字符串
+     */
+    private static String formatSize(long size) {
+        if (size < 1024) return size + " B";
+        int exp = (int) (Math.log(size) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp-1) + "";
+        return String.format("%.2f %sB", size / Math.pow(1024, exp), pre);
     }
 
     private static long size(final File file, FilenameFilter filter, int level) {
@@ -111,5 +155,38 @@ public class DBSpace {
         obj.addProperty("index", indexSize);
         obj.addProperty("total", dbSize + indexSize);
         return gson.toJson(obj);
+    }
+
+    /**
+     * 计算日志目录大小
+     * @param dir 日志目录
+     * @param username 用户名
+     * @return 包含日志文件大小的JsonObject
+     */
+    private static JsonObject calculateLogStats(File dir, String username) {
+        JsonObject obj = new JsonObject();
+        
+        if (!dir.exists()) {
+            obj.addProperty("exists", false);
+            obj.addProperty("total", 0);
+            obj.addProperty("message", "日志目录不存在: " + dir.getAbsolutePath());
+            return obj;
+        }
+        
+        obj.addProperty("exists", true);
+        
+        // 计算日志目录总大小
+        long totalSize = size(dir, noFilter);
+        
+        // 获取文件数量
+        File[] logFiles = dir.listFiles((d, name) -> name.endsWith(".log"));
+        int fileCount = logFiles != null ? logFiles.length : 0;
+        
+        obj.addProperty("total", totalSize);
+        obj.addProperty("totalFormatted", formatSize(totalSize));
+        obj.addProperty("fileCount", fileCount);
+        obj.addProperty("username", username);
+        
+        return obj;
     }
 }

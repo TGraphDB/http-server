@@ -107,7 +107,8 @@ public class Application {
                 if (ctx.path().startsWith("/user/login") || 
                     ctx.path().startsWith("/user/logout") || 
                     ctx.path().startsWith("/user/register") ||
-                    ctx.path().startsWith("/system/resources")) {
+                    ctx.path().startsWith("/system/resources") ||
+                    ctx.path().startsWith("/db/manage/logs/size")) {
                     handler.handle(ctx);
                     return;
                 }
@@ -471,6 +472,28 @@ public class Application {
         // 添加数据库空间统计API
         app.get("/db/manage/server/space", ctx -> {
             Map<String, Object> response = DBSpace.getSpaceStatsResponse();
+            ctx.status(200).json(response);
+        });
+
+        // 添加用户日志大小统计API
+        app.get("/db/manage/logs/size/{username}", ctx -> {
+            String username = ctx.pathParam("username");
+            
+            // 验证当前用户是否有权限查看此日志大小
+            Object userObj = ctx.attribute("user");
+            if (userObj != null && userObj instanceof User) {
+                User user = (User) userObj;
+                // 只允许用户查看自己的日志大小
+                if (!user.getUsername().equals(username)) {
+                    ctx.status(403).json(new ErrorResponse(
+                        "无权查看其他用户的日志信息",
+                        "Neo.ClientError.Security.Forbidden"
+                    ));
+                    return;
+                }
+            }
+            
+            Map<String, Object> response = DBSpace.getUserLogsSizeResponse(username);
             ctx.status(200).json(response);
         });
 

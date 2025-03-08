@@ -18,7 +18,7 @@ import service.User;
  * 用户日志处理器，提供用户查看自己日志的功能
  */
 public class UserLogHandler {
-    private static final String LOGS_DIR = "logs";
+    private static final String LOGS_DIR = "target/logs";
     
     /**
      * 获取用户日志内容

@@ -37,15 +37,15 @@ public class SystemMonitorService {
         }
         
         // 内存信息 (MB)
-        resources.put("totalMemory", totalMemory / (1024 * 1024));
-        resources.put("usedMemory", usedMemory / (1024 * 1024));
-        resources.put("freeMemory", freeMemory / (1024 * 1024));
+        resources.put("totalMemory", totalMemory / (1024 * 1024) + " MB");
+        resources.put("usedMemory", usedMemory / (1024 * 1024) + " MB");
+        resources.put("freeMemory", freeMemory / (1024 * 1024) + " MB");
         
         // CPU信息
-        resources.put("processCpuLoad", processCpuLoad);
-        resources.put("systemCpuLoad", systemCpuLoad);
-        resources.put("availableProcessors", runtime.availableProcessors());
+        resources.put("processCpuLoad", String.format("%.2f%%", processCpuLoad * 100));
+        resources.put("systemCpuLoad", String.format("%.2f%%", systemCpuLoad * 100));
+        resources.put("availableProcessors", runtime.availableProcessors() + " 核");
         
         return resources;
     }
-} 
+}

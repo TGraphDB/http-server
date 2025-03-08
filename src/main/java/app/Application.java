@@ -27,6 +27,8 @@ import service.SecurityConfig;
 import util.ServerConfig;
 import util.UserLogger;
 
+import tgraph.DBSpace;
+
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
@@ -95,7 +97,7 @@ public class Application {
                 return server;
             });
 
-            // 可以考虑把这些放到before里面
+            
             config.accessManager((handler, ctx, permittedRoles) -> {
                 // 如果认证被禁用，直接允许访问
                 if (!SecurityConfig.isAuthEnabled()) {
@@ -605,7 +607,7 @@ public class Application {
             
             if (user.isPasswordChangeRequired()) {
                 response.put("password_change_required", true);
-                response.put("password_change_url", "/user/" + username + "/password");
+                response.put("password_change_url", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
             } else {
                 response.put("password_change_required", false);
             }

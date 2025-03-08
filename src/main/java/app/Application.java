@@ -27,8 +27,6 @@ import service.SecurityConfig;
 import util.ServerConfig;
 import util.UserLogger;
 
-import tgraph.DBSpace;
-
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
@@ -488,42 +486,6 @@ public class Application {
             
             String username = ((User) userObj).getUsername();
             Map<String, Object> response = DBSpace.getSpaceStatsResponse(username, dbname);
-            ctx.status(200).json(response);
-        });
-
-        // 添加用户日志大小统计API
-        app.get("/user/logs/size", ctx -> {
-            // 验证当前用户是否有权限查看此日志大小
-            Object userObj = ctx.attribute("user");
-            if (userObj == null || !(userObj instanceof User)) {
-                ctx.status(401).json(new ErrorResponse(
-                    "未授权或会话已过期",
-                    "Neo.ClientError.Security.Unauthorized"
-                ));
-                return;
-            }
-            
-            String username = ((User) userObj).getUsername();
-            Map<String, Object> response = DBSpace.getUserLogsSizeResponse(username);
-            ctx.status(200).json(response);
-        });
-
-        // 添加数据库日志文件大小统计API
-        app.get("/databases/{dbname}/logs/size", ctx -> {
-            String dbname = ctx.pathParam("dbname");
-            
-            // 验证当前用户是否有权限查看此日志大小
-            Object userObj = ctx.attribute("user");
-            if (userObj == null || !(userObj instanceof User)) {
-                ctx.status(401).json(new ErrorResponse(
-                    "未授权或会话已过期",
-                    "Neo.ClientError.Security.Unauthorized"
-                ));
-                return;
-            }
-            
-            String username = ((User) userObj).getUsername();
-            Map<String, Object> response = DBSpace.getDatabaseLogsSizeResponse(username, dbname);
             ctx.status(200).json(response);
         });
 

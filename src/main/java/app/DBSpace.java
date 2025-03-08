@@ -16,17 +16,8 @@ import com.google.gson.JsonObject;
  */
 public class DBSpace {
     
-    private static final String DB_PATH = "target/neo4j-hello-db"; // 默认数据库路径
     private static final String TARGET_DIR = "target"; // 目标目录
     private static final Gson gson = new Gson();
-    
-    /**
-     * 获取Neo4j数据库的空间使用统计
-     * @return 包含数据和索引空间使用的JSON字符串
-     */
-    public static String getNeo4jSpaceStats() {
-        return neo4jSize(new File(DB_PATH));
-    }
     
     /**
      * 获取指定路径Neo4j数据库的空间使用统计
@@ -38,18 +29,32 @@ public class DBSpace {
     }
     
     /**
-     * 获取数据库空间使用情况的API响应
+     * 获取指定用户和数据库名的Neo4j数据库空间使用统计
+     * @param username 用户名
+     * @param dbName 数据库名
+     * @return 包含数据和索引空间使用的JSON字符串
+     */
+    public static String getNeo4jSpaceStats(String username, String dbName) {
+        String dbPath = TARGET_DIR + File.separator + username + File.separator + dbName;
+        return neo4jSize(new File(dbPath));
+    }
+    
+    /**
+     * 获取指定用户和数据库的空间使用情况的API响应
+     * @param username 用户名
+     * @param dbName 数据库名
      * @return 包含统计信息的Map
      */
-    public static Map<String, Object> getSpaceStatsResponse() {
-        String statsJson = getNeo4jSpaceStats();
+    public static Map<String, Object> getSpaceStatsResponse(String username, String dbName) {
+        String dbPath = TARGET_DIR + File.separator + username + File.separator + dbName;
+        String statsJson = getNeo4jSpaceStats(dbPath);
         Map<String, Object> response = new HashMap<>();
         
         // 解析JSON字符串，提取数据
         try {
             JsonObject obj = new JsonObject();
             obj.addProperty("space_stats", statsJson);
-            obj.addProperty("db_path", DB_PATH);
+            obj.addProperty("db_path", dbPath);
             response.put("space_statistics", gson.fromJson(obj.toString(), Map.class));
         } catch (Exception e) {
             response.put("error", "无法获取空间统计信息: " + e.getMessage());
@@ -57,9 +62,9 @@ public class DBSpace {
         
         return response;
     }
-
+    
     /**
-     * 获取用户日志文件大小的API响应
+     * 获取http请求日志文件大小的API响应
      * @param username 用户名
      * @return 包含统计信息的Map
      */
@@ -291,7 +296,7 @@ public class DBSpace {
             return obj;
         }
         
-        obj.addProperty("exists", true);
+        // obj.addProperty("exists", true);
         
         // 计算日志目录总大小
         long totalSize = size(dir, noFilter);
@@ -300,9 +305,9 @@ public class DBSpace {
         File[] logFiles = dir.listFiles((d, name) -> name.endsWith(".log"));
         int fileCount = logFiles != null ? logFiles.length : 0;
         
-        obj.addProperty("total", totalSize);
+        //obj.addProperty("total", totalSize);
         obj.addProperty("totalFormatted", formatSize(totalSize));
-        obj.addProperty("fileCount", fileCount);
+        //obj.addProperty("fileCount", fileCount);
         obj.addProperty("username", username);
         
         return obj;

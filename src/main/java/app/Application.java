@@ -108,8 +108,8 @@ public class Application {
                     ctx.path().startsWith("/user/logout") || 
                     ctx.path().startsWith("/user/register") ||
                     ctx.path().startsWith("/system/resources") ||
-                    ctx.path().startsWith("/db/manage/logs/size") ||
-                    ctx.path().startsWith("/db/manage/dblogs/size")) {
+                    ctx.path().startsWith("/user") ||
+                    ctx.path().startsWith("/databases")) {
                     handler.handle(ctx);
                     return;
                 }
@@ -471,52 +471,56 @@ public class Application {
         app.get("/db/data/database/status", TgraphHandler::getDatabaseStatus);
 
         // 添加数据库空间统计API
-        app.get("/db/manage/server/space", ctx -> {
-            Map<String, Object> response = DBSpace.getSpaceStatsResponse();
+        app.get("/databases/{dbname}/space", ctx -> {
+            String dbname = ctx.pathParam("dbname");
+            
+            // 验证当前用户是否有权限查看此数据库信息
+            Object userObj = ctx.attribute("user");
+            if (userObj == null || !(userObj instanceof User)) {
+                ctx.status(401).json(new ErrorResponse(
+                    "未授权或会话已过期",
+                    "Neo.ClientError.Security.Unauthorized"
+                ));
+                return;
+            }
+            
+            String username = ((User) userObj).getUsername();
+            Map<String, Object> response = DBSpace.getSpaceStatsResponse(username, dbname);
             ctx.status(200).json(response);
         });
 
         // 添加用户日志大小统计API
-        app.get("/db/manage/logs/size/{username}", ctx -> {
-            String username = ctx.pathParam("username");
-            
+        app.get("/user/logs/size", ctx -> {
             // 验证当前用户是否有权限查看此日志大小
             Object userObj = ctx.attribute("user");
-            if (userObj != null && userObj instanceof User) {
-                User user = (User) userObj;
-                // 只允许用户查看自己的日志大小
-                if (!user.getUsername().equals(username)) {
-                    ctx.status(403).json(new ErrorResponse(
-                        "无权查看其他用户的日志信息",
-                        "Neo.ClientError.Security.Forbidden"
-                    ));
-                    return;
-                }
+            if (userObj == null || !(userObj instanceof User)) {
+                ctx.status(401).json(new ErrorResponse(
+                    "未授权或会话已过期",
+                    "Neo.ClientError.Security.Unauthorized"
+                ));
+                return;
             }
             
+            String username = ((User) userObj).getUsername();
             Map<String, Object> response = DBSpace.getUserLogsSizeResponse(username);
             ctx.status(200).json(response);
         });
 
         // 添加数据库日志文件大小统计API
-        app.get("/db/manage/dblogs/size/{username}/{dbname}", ctx -> {
-            String username = ctx.pathParam("username");
+        app.get("/databases/{dbname}/logs/size", ctx -> {
             String dbname = ctx.pathParam("dbname");
             
             // 验证当前用户是否有权限查看此日志大小
             Object userObj = ctx.attribute("user");
-            if (userObj != null && userObj instanceof User) {
-                User user = (User) userObj;
-                // 只允许用户查看自己的数据库日志
-                if (!user.getUsername().equals(username)) {
-                    ctx.status(403).json(new ErrorResponse(
-                        "无权查看其他用户的数据库日志信息",
-                        "Neo.ClientError.Security.Forbidden"
-                    ));
-                    return;
-                }
+            if (userObj == null || !(userObj instanceof User)) {
+                ctx.status(401).json(new ErrorResponse(
+                    "未授权或会话已过期",
+                    "Neo.ClientError.Security.Unauthorized"
+                ));
+                return;
             }
             
+            String username = ((User) userObj).getUsername();
             Map<String, Object> response = DBSpace.getDatabaseLogsSizeResponse(username, dbname);
             ctx.status(200).json(response);
         });
@@ -534,7 +538,7 @@ public class Application {
         });
 
         // 添加用户日志查看API
-        app.get("/user/log", userLogHandler::getUserLog);
+        app.get("/user/logs", userLogHandler::getUserLog);
 
         // 在 Javalin.create 配置中添加
         app.before(ctx -> {

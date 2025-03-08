@@ -31,8 +31,8 @@ public class UserLogHandler {
             return;
         }
         
-        User user = (User) userObj;
-        String username = user.getUsername();
+        // 获取当前登录用户的用户名
+        String username = ((User)userObj).getUsername();
         
         try {
             // 日志文件路径

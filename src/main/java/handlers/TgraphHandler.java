@@ -15,9 +15,10 @@ import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 
 import io.javalin.http.Context;
 import tgraph.Tgraph;
+import service.User;
 
 public class TgraphHandler {
-    // 声明并初始化 databasePaths
+    // 声明并初始化 databasePaths，现在键为 "username:databaseName"
     private static final Map<String, String> databasePaths = new HashMap<>();
     private static final String PATHS_FILE = "config/database-paths.properties";
     
@@ -27,6 +28,20 @@ public class TgraphHandler {
     }
     
     public TgraphHandler() {
+    }
+    
+    // 从context中获取当前用户名
+    private String getCurrentUsername(Context ctx) {
+        Object userObj = ctx.attribute("user");
+        if (userObj != null && userObj instanceof User) {
+            return ((User) userObj).getUsername();
+        }
+        return null;
+    }
+    
+    // 创建路径键，格式为 "username:databaseName"
+    private String createPathKey(String username, String databaseName) {
+        return username + ":" + databaseName;
     }
     
     // 加载数据库路径信息
@@ -44,8 +59,8 @@ public class TgraphHandler {
             
             // 清空现有映射并重新加载
             databasePaths.clear();
-            for (String dbName : props.stringPropertyNames()) {
-                databasePaths.put(dbName, props.getProperty(dbName));
+            for (String key : props.stringPropertyNames()) {
+                databasePaths.put(key, props.getProperty(key));
             }
             
             System.out.println("成功加载数据库路径信息: " + databasePaths.size() + " 个数据库");
@@ -57,42 +72,39 @@ public class TgraphHandler {
     // 保存数据库路径信息
     private static void saveDatabasePaths() {
         Properties props = new Properties();
-        
-        // 将映射转换为属性
         for (Map.Entry<String, String> entry : databasePaths.entrySet()) {
             props.setProperty(entry.getKey(), entry.getValue());
         }
         
         try (FileOutputStream fos = new FileOutputStream(PATHS_FILE)) {
-            props.store(fos, "TGraph Database Paths");
+            props.store(fos, "数据库路径配置");
             System.out.println("成功保存数据库路径信息: " + databasePaths.size() + " 个数据库");
         } catch (IOException e) {
             System.err.println("保存数据库路径信息时出错: " + e.getMessage());
         }
     }
     
-    // 创建数据库 - 修改以记录路径并持久化
+    // 创建数据库API
     public void createDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        if (Tgraph.graphDb != null) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "已有数据库在运行，请先关闭当前数据库");
-            error.put("code", "Neo.ClientError.General.DatabaseError");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(409).json(errorResponse); // 409 Conflict
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
             return;
         }
+        
         try {
-            Tgraph.graphDb = Tgraph.createDb(databaseName);
+            Tgraph.graphDb = Tgraph.createDb(username, databaseName);
+            
             // 记录数据库路径并持久化
-            String dbPath = Tgraph.TARGET_DIR + "/" + databaseName;
-            databasePaths.put(databaseName, dbPath);
+            String pathKey = createPathKey(username, databaseName);
+            String dbPath = Tgraph.TARGET_DIR + File.separator + username + File.separator + databaseName;
+            databasePaths.put(pathKey, dbPath);
             saveDatabasePaths(); // 保存到文件
         } catch (Exception e) {
             e.printStackTrace();
+            ctx.status(500).json(createErrorResponse("创建数据库失败: " + e.getMessage(), "Neo.DatabaseError.General.UnknownError"));
+            return;
         }
         ctx.status(201);
     }
@@ -100,137 +112,151 @@ public class TgraphHandler {
     // 启动数据库 - 确保也记录路径
     public void startDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        if (Tgraph.graphDb != null) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "已有数据库在运行，请先关闭当前数据库");
-            error.put("code", "Neo.ClientError.General.DatabaseError");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(409).json(errorResponse); // 409 Conflict
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
             return;
         }
-        Tgraph.graphDb = Tgraph.startDb(databaseName);
         
-        // 如果数据库路径尚未记录，则记录并持久化
-        if (!databasePaths.containsKey(databaseName)) {
-            String dbPath = Tgraph.TARGET_DIR + "/" + databaseName;
-            databasePaths.put(databaseName, dbPath);
-            saveDatabasePaths(); // 保存到文件
+        if (Tgraph.graphDb != null) {
+            ctx.status(409).json(createErrorResponse("已有数据库在运行，请先关闭当前数据库", "Neo.ClientError.General.DatabaseError"));
+            return;
         }
         
-        ctx.status(201);
+        try {
+            Tgraph.graphDb = Tgraph.startDb(username, databaseName);
+            
+            // 如果数据库路径尚未记录，则记录并持久化
+            String pathKey = createPathKey(username, databaseName);
+            if (!databasePaths.containsKey(pathKey)) {
+                String dbPath = Tgraph.TARGET_DIR + File.separator + username + File.separator + databaseName;
+                databasePaths.put(pathKey, dbPath);
+                saveDatabasePaths(); // 保存到文件
+            }
+            
+            ctx.status(201);
+        } catch (Exception e) {
+            ctx.status(404).json(createErrorResponse("数据库不存在或无法访问: " + e.getMessage(), "Neo.ClientError.General.DatabaseNotFound"));
+        }
     }
 
     // 删除数据库 - 同时从路径记录中移除
     public void deleteDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        boolean isDelete = Tgraph.deleteDb(databaseName);
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
+            return;
+        }
+        
+        boolean isDelete = Tgraph.deleteDb(username, databaseName);
         if (isDelete) {
-            // 从路径记录中移除并持久化
-            databasePaths.remove(databaseName);
+            // 从路径记录中移除
+            String pathKey = createPathKey(username, databaseName);
+            databasePaths.remove(pathKey);
             saveDatabasePaths();
-            ctx.status(204);
+            
+            ctx.status(200);
         } else {
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "删除数据库 '" + databaseName + "' 失败");
-            error.put("code", "Neo.ClientError.General.DatabaseError");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(500).json(errorResponse);
+            ctx.status(500).json(createErrorResponse("删除数据库失败", "Neo.DatabaseError.General.UnknownError"));
         }
     }
-
-    // 关闭数据库 由于一个时间只能有一个数据库被打开 所以不用传入{databaseName}
-    public void shutdownDatabase(Context ctx) {
-        Tgraph.shutDown(Tgraph.graphDb);
-        Tgraph.graphDb = null;
-        ctx.status(204);
+    
+    // 辅助方法：创建错误响应
+    private Map<String, Object> createErrorResponse(String message, String code) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        List<Map<String, String>> errors = new ArrayList<>();
+        Map<String, String> error = new HashMap<>();
+        error.put("message", message);
+        error.put("code", code);
+        errors.add(error);
+        errorResponse.put("errors", errors);
+        return errorResponse;
     }
-
+    
+    // 关闭数据库
+    public void shutdownDatabase(Context ctx) {
+        if (Tgraph.graphDb != null) {
+            Tgraph.shutDown(Tgraph.graphDb);
+            Tgraph.graphDb = null;
+            ctx.status(200);
+        } else {
+            ctx.status(404).json(createErrorResponse("没有正在运行的数据库", "Neo.ClientError.General.DatabaseNotFound"));
+        }
+    }
+    
+    // 备份数据库API
     public void backupDatabase(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
+            return;
+        }
+        
         try {
-            Tgraph.backupDatabase(databaseName);
-            ctx.status(201);
-        } catch (IllegalStateException e) {
-            // 数据库正在运行的错误处理
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            error.put("code", "Neo.ClientError.General.DatabaseError");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(409).json(errorResponse);
+            Tgraph.backupDatabase(username, databaseName);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "数据库备份成功");
+            ctx.status(200).json(response);
         } catch (IllegalArgumentException e) {
-            // 数据库不存在的错误处理
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            error.put("code", "Neo.ClientError.General.DatabaseNotFound");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(404).json(errorResponse);
+            ctx.status(404).json(createErrorResponse(e.getMessage(), "Neo.ClientError.General.DatabaseNotFound"));
+        } catch (IllegalStateException e) {
+            ctx.status(409).json(createErrorResponse(e.getMessage(), "Neo.ClientError.General.DatabaseError"));
         } catch (IOException e) {
-            // IO错误处理
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "备份数据库时发生错误: " + e.getMessage());
-            error.put("code", "Neo.ClientError.General.IOError");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(500).json(errorResponse);
+            ctx.status(500).json(createErrorResponse("备份数据库失败: " + e.getMessage(), "Neo.DatabaseError.General.UnknownError"));
         }
     }
-
+    
+    // 恢复数据库API
     public void restoreDatabase(Context ctx) {
-        String databaseName = ctx.pathParam("databaseName");
+        String backupFileName = ctx.pathParam("backupFileName");
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
+            return;
+        }
+        
         try {
-            Tgraph.restoreDatabase(databaseName);
-            ctx.status(201);
-        } catch (IllegalStateException e) {
-            // 数据库正在运行或目标数据库已存在的错误处理
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            error.put("code", "Neo.ClientError.General.DatabaseError");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(409).json(errorResponse);
+            Tgraph.restoreDatabase(username, backupFileName);
+            
+            // 从备份文件名中解析数据库名
+            String fileNameWithoutExt = backupFileName.substring(0, backupFileName.lastIndexOf('.'));
+            String[] parts = fileNameWithoutExt.split("_");
+            String dbName = parts[1];
+            for (int i = 2; i < parts.length - 2; i++) {
+                dbName += "_" + parts[i];
+            }
+            
+            // 更新路径记录
+            String pathKey = createPathKey(username, dbName);
+            String dbPath = Tgraph.TARGET_DIR + File.separator + username + File.separator + dbName;
+            databasePaths.put(pathKey, dbPath);
+            saveDatabasePaths();
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "数据库恢复成功");
+            ctx.status(200).json(response);
         } catch (IllegalArgumentException e) {
-            // 备份文件不存在的错误处理
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            error.put("code", "Neo.ClientError.General.BackupNotFound");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(404).json(errorResponse);
+            ctx.status(400).json(createErrorResponse(e.getMessage(), "Neo.ClientError.General.InvalidArguments"));
+        } catch (IllegalStateException e) {
+            ctx.status(409).json(createErrorResponse(e.getMessage(), "Neo.ClientError.General.DatabaseError"));
         } catch (IOException e) {
-            // IO错误处理
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "恢复数据库时发生错误: " + e.getMessage());
-            error.put("code", "Neo.ClientError.General.IOError");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(500).json(errorResponse);
+            ctx.status(500).json(createErrorResponse("恢复数据库失败: " + e.getMessage(), "Neo.DatabaseError.General.UnknownError"));
         }
     }
-
-    // 获取数据库路径
+    
+    // 获取数据库路径API
     public void getDatabasePath(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        String path = databasePaths.get(databaseName);
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
+            return;
+        }
+        
+        String pathKey = createPathKey(username, databaseName);
+        String path = databasePaths.get(pathKey);
         
         if (path != null) {
             Map<String, Object> response = new HashMap<>();
@@ -238,27 +264,26 @@ public class TgraphHandler {
             response.put("path", path);
             ctx.status(200).json(response);
         } else {
-            Map<String, Object> errorResponse = new HashMap<>();
-            List<Map<String, String>> errors = new ArrayList<>();
-            Map<String, String> error = new HashMap<>();
-            error.put("message", "数据库 '" + databaseName + "' 不存在或未记录路径");
-            error.put("code", "Neo.ClientError.General.DatabaseNotFound");
-            errors.add(error);
-            errorResponse.put("errors", errors);
-            ctx.status(404).json(errorResponse);
+            ctx.status(404).json(createErrorResponse("数据库 '" + databaseName + "' 不存在或未记录路径", "Neo.ClientError.General.DatabaseNotFound"));
         }
     }                    
     
     // 获取数据库状态
     public void getDatabaseStatus(Context ctx) {
         String databaseName = ctx.pathParam("databaseName");
-        String dbDir = new File(Tgraph.TARGET_DIR, databaseName).getPath();
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
+            return;
+        }
+        
+        String dbDir = Tgraph.TARGET_DIR + File.separator + username + File.separator + databaseName;
         Map<String, Object> response = new HashMap<>();
         
         try {
             // 尝试打开数据库
             GraphDatabaseService graphDb = new GraphDatabaseFactory()
-                .newEmbeddedDatabaseBuilder(dbDir)
+                .newEmbeddedDatabaseBuilder(new File(dbDir))
                 .newGraphDatabase();
             // 能成功打开说明数据库没有被其他进程使用（关闭状态）
             graphDb.shutdown();
@@ -267,9 +292,13 @@ public class TgraphHandler {
             response.put("status", "stopped");
             ctx.status(200).json(response);
         } catch (Exception e) {
-            // 捕获异常意味着数据库可能正在被其他进程使用（启动状态）
-            response.put("status", "running");
-            ctx.status(200).json(response);
+            // 捕获异常意味着数据库可能正在被其他进程使用（启动状态）或不存在
+            if (new File(dbDir).exists()) {
+                response.put("status", "running");
+                ctx.status(200).json(response);
+            } else {
+                ctx.status(404).json(createErrorResponse("数据库 '" + databaseName + "' 不存在", "Neo.ClientError.General.DatabaseNotFound"));
+            }
         }
     }
 }

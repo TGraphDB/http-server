@@ -6,21 +6,26 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
 
 import handlers.LabelHandler;
 import handlers.NodeHandler;
 import handlers.RelationshipHandler;
 import handlers.TgraphHandler;
 import handlers.PropertyHandler;
+import handlers.UserLogHandler;
 
 // 着重了解一下org.neo4j.tooling.GlobalGraphOperations
 
 import service.UserService;
 import service.User;
+import service.SessionManager;
 import util.PasswordUtil;
 import service.SecurityConfig;
 import util.ServerConfig;
+import util.UserLogger;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
@@ -37,9 +42,13 @@ public class Application {
     private static LabelHandler labelHandler = new LabelHandler();
     private static PropertyHandler propertyHandler = new PropertyHandler();
     private static TgraphHandler TgraphHandler = new TgraphHandler();
+    private static UserLogHandler userLogHandler = new UserLogHandler();
     
     
     public static void main(String[] args) {
+        // 启用用户日志记录
+        UserLogger.enableUserLogging();
+        
         // 加载配置文件
         String configPath = System.getProperty("config.path", "config/server-config.properties");
         ServerConfig.loadAndApplyConfig(configPath);
@@ -93,16 +102,53 @@ public class Application {
                     return;
                 }
                 
-                if (ctx.path().startsWith("/user/")) {
+                // 公共路径无需认证
+                if (ctx.path().startsWith("/user/login") || 
+                    ctx.path().startsWith("/user/logout") || 
+                    ctx.path().startsWith("/user/register")) {
                     handler.handle(ctx);
                     return;
+                }
+                
+                // 尝试从cookie中获取会话ID
+                String sessionId = ctx.cookie("sessionId");
+                if (sessionId != null) {
+                    // 验证会话
+                    String username = SessionManager.validateSession(sessionId);
+                    if (username != null) {
+                        // 会话有效
+                        User user = userService.getUserStatus(username);
+                        if (user != null) {
+                            // 设置当前用户
+                            ctx.attribute("user", user);
+                            UserLogger.setCurrentUser(username);
+                            
+                            // 如果密码需要更改，并且不是访问密码更改页面，则返回403
+                            if (user.isPasswordChangeRequired() && 
+                                !ctx.path().equals("/user/" + username + "/password")) {
+                                Map<String, Object> response = new HashMap<>();
+                                response.put("password_change", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
+                                response.put("errors", Collections.singletonList(new ErrorResponse(
+                                    "用户需要修改密码。",
+                                    "Neo.ClientError.Security.AuthorizationFailed"
+                                )));
+                                
+                                ctx.status(403)
+                                   .json(response);
+                                return;
+                            }
+                            
+                            handler.handle(ctx);
+                            return;
+                        }
+                    }
                 }
                 
                 String authHeader = ctx.header("Authorization");
                 if (authHeader == null) {
                     Map<String, Object> response = new HashMap<>();
                     response.put("errors", Collections.singletonList(new ErrorResponse(
-                        "No authorization header supplied.",
+                        "未提供授权信息。请登录或提供认证头。",
                         "Neo.ClientError.Security.AuthorizationFailed"
                     )));
                     
@@ -131,6 +177,12 @@ public class Application {
                         return;
                     }
                     
+                    // 将认证成功的用户保存到ctx属性中，以便后续处理
+                    ctx.attribute("user", user);
+                    
+                    // 设置当前线程的用户名，用于日志重定向
+                    UserLogger.setCurrentUser(user.getUsername());
+                    
                     if (user.isPasswordChangeRequired()) {
                         Map<String, Object> response = new HashMap<>();
                         response.put("password_change", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
@@ -157,18 +209,39 @@ public class Application {
         // 设置事务超时时间
         // 添加中间件以处理事务超时
         app.before(ctx -> {
-            ctx.attribute("startTime", System.currentTimeMillis());
+            // 为每个请求生成唯一 ID
+            String requestId = UUID.randomUUID().toString();
+            ctx.attribute("requestId", requestId);
+            
+            // 记录请求开始时间
+            ctx.attribute("requestStartTime", System.currentTimeMillis());
+            
+            // 获取当前用户并设置日志环境
+            Object userObj = ctx.attribute("user");
+            if (userObj != null && userObj instanceof User) {
+                String username = ((User) userObj).getUsername();
+                UserLogger.setCurrentUser(username);
+            } else {
+                // 尝试从cookie获取会话
+                String sessionId = ctx.cookie("sessionId");
+                if (sessionId != null) {
+                    String username = SessionManager.validateSession(sessionId);
+                    if (username != null) {
+                        User user = userService.getUserStatus(username);
+                        if (user != null) {
+                            ctx.attribute("user", user);
+                            UserLogger.setCurrentUser(username);
+                        }
+                    }
+                }
+            }
+            
+            // 其他请求预处理...
         });
         
         // 目前只能在结束后再计算是否超时
         app.after(ctx -> {
-            Long startTime = ctx.attribute("startTime");
-            if (startTime != null) {
-                long endTime = System.currentTimeMillis();
-                if (endTime - startTime > transactionTimeout * 1000) {
-                    ctx.status(408).json(new ErrorResponse("Request timeout", "Neo.ClientError.RequestTimeout"));
-                }
-            }
+            // 在请求完成后的处理
         });
 
         // 列出所有属性键API
@@ -197,6 +270,18 @@ public class Application {
         // 用户状态API
         app.get("/user/{username}", ctx -> {
             String username = ctx.pathParam("username");
+            
+            // 验证当前用户是否有权查看此用户信息
+            Object userObj = ctx.attribute("user");
+            if (userObj == null || !(userObj instanceof User) || 
+                !((User)userObj).getUsername().equals(username)) {
+                ctx.status(403).json(new ErrorResponse(
+                    "无权访问此用户信息。",
+                    "Neo.ClientError.Security.Forbidden"
+                ));
+                return;
+            }
+            
             User user = userService.getUserStatus(username);
             if (user != null) {
                 Map<String, Object> response = new HashMap<>();
@@ -214,17 +299,37 @@ public class Application {
         // 密码修改API
         app.post("/user/{username}/password", ctx -> {
             String username = ctx.pathParam("username");
-            String newPassword = ctx.bodyAsClass(PasswordChangeRequest.class).getPassword();
             
-            // 从Authorization头获取当前密码
-            String[] credentials = extractCredentials(ctx.header("Authorization"));
-            String currentPassword = credentials[1];
+            // 验证当前用户是否有权更改此用户密码
+            Object userObj = ctx.attribute("user");
+            if (userObj == null || !(userObj instanceof User) || 
+                !((User)userObj).getUsername().equals(username)) {
+                ctx.status(403).json(new ErrorResponse(
+                    "无权更改此用户的密码。",
+                    "Neo.ClientError.Security.Forbidden"
+                ));
+                return;
+            }
+            
+            PasswordChangeRequest request;
+            try {
+                request = ctx.bodyAsClass(PasswordChangeRequest.class);
+            } catch (Exception e) {
+                ctx.status(400).json(new ErrorResponse(
+                    "无效的密码更改请求格式。",
+                    "Neo.ClientError.Request.InvalidFormat"
+                ));
+                return;
+            }
+            
+            String currentPassword = request.getCurrentPassword();
+            String newPassword = request.getNewPassword();
             
             if (userService.changePassword(username, currentPassword, newPassword)) {
                 ctx.status(200);
             } else {
                 ctx.status(400).json(new ErrorResponse(
-                    "Invalid password change request or new password same as current password.",
+                    "密码更改请求无效，或新密码与当前密码相同。",
                     "Neo.ClientError.Security.InvalidPassword"
                 ));
             }
@@ -361,6 +466,15 @@ public class Application {
         // 获取数据库状态
         app.get("/db/data/database/status", TgraphHandler::getDatabaseStatus);
 
+        // 添加数据库空间统计API
+        app.get("/db/manage/server/space", ctx -> {
+            Map<String, Object> response = DBSpace.getSpaceStatsResponse();
+            ctx.status(200).json(response);
+        });
+
+        // 添加用户日志查看API
+        app.get("/user/log", userLogHandler::getUserLog);
+
         // 在 Javalin.create 配置中添加
         app.before(ctx -> {
             // 为每个请求生成唯一 ID
@@ -385,16 +499,122 @@ public class Application {
             // 检查是否有管理员权限
             ctx.json(RequestTracker.getActiveRequests());
         });
+
+        // 用户登录API
+        app.post("/user/login", ctx -> {
+            LoginRequest loginRequest;
+            try {
+                loginRequest = ctx.bodyAsClass(LoginRequest.class);
+            } catch (Exception e) {
+                ctx.status(400).json(new ErrorResponse(
+                    "无效的登录请求格式。",
+                    "Neo.ClientError.Request.InvalidFormat"
+                ));
+                return;
+            }
+            
+            String username = loginRequest.getUsername();
+            String password = loginRequest.getPassword();
+            boolean rememberMe = loginRequest.isRememberMe();
+            
+            // 验证用户
+            User user = userService.getUserStatus(username);
+            if (user == null || !PasswordUtil.checkPassword(password, user.getPasswordHash())) {
+                ctx.status(401).json(new ErrorResponse(
+                    "用户名或密码无效。",
+                    "Neo.ClientError.Security.AuthorizationFailed"
+                ));
+                return;
+            }
+            
+            // 创建会话
+            String sessionId = SessionManager.createSession(username, rememberMe);
+            
+            // 设置会话cookie
+            int maxAge = rememberMe ? 7 * 24 * 60 * 60 : -1; // "记住我"设置7天，否则浏览器关闭时失效
+            ctx.cookie("sessionId", sessionId, maxAge);
+            
+            // 返回登录成功的响应
+            Map<String, Object> response = new HashMap<>();
+            response.put("username", username);
+            
+            if (user.isPasswordChangeRequired()) {
+                response.put("password_change_required", true);
+                response.put("password_change_url", "/user/" + username + "/password");
+            } else {
+                response.put("password_change_required", false);
+            }
+            
+            ctx.status(200).json(response);
+        });
+        
+        // 用户登出API
+        app.post("/user/logout", ctx -> {
+            String sessionId = ctx.cookie("sessionId");
+            if (sessionId != null) {
+                SessionManager.invalidateSession(sessionId);
+                ctx.removeCookie("sessionId");
+            }
+            ctx.status(200).json(Collections.singletonMap("message", "登出成功"));
+        });
+
+        // 用户注册API（无需登录）
+        app.post("/user/register", ctx -> {
+            RegisterUserRequest registerRequest;
+            try {
+                registerRequest = ctx.bodyAsClass(RegisterUserRequest.class);
+            } catch (Exception e) {
+                ctx.status(400).json(new ErrorResponse(
+                    "无效的注册请求格式。",
+                    "Neo.ClientError.Request.InvalidFormat"
+                ));
+                return;
+            }
+            
+            // 验证用户注册
+            String result = userService.registerUser(
+                registerRequest.getUsername(),
+                registerRequest.getPassword()
+            );
+            
+            if (result != null) {
+                // 注册失败
+                ctx.status(400).json(new ErrorResponse(
+                    result,
+                    "Neo.ClientError.Request.Invalid"
+                ));
+            } else {
+                // 注册成功，自动创建会话并设置cookie
+                String sessionId = SessionManager.createSession(
+                    registerRequest.getUsername(), 
+                    registerRequest.isRememberMe()
+                );
+                
+                // 设置会话cookie
+                int maxAge = registerRequest.isRememberMe() ? 7 * 24 * 60 * 60 : -1;
+                ctx.cookie("sessionId", sessionId, maxAge);
+                
+                // 返回注册成功的响应
+                Map<String, Object> response = new HashMap<>();
+                response.put("username", registerRequest.getUsername());
+                response.put("message", "注册成功并自动登录");
+                ctx.status(201).json(response);
+            }
+        });
     }
     
     private static String[] extractCredentials(String authHeader) {
-        if (!authHeader.startsWith("Basic ")) {
-            throw new IllegalArgumentException("Invalid authorization header");
+        if (authHeader == null || !authHeader.startsWith("Basic ")) {
+            return new String[] { "", "" };
         }
-        
-        String base64Credentials = authHeader.substring("Basic ".length());
-        String credentials = new String(Base64.getDecoder().decode(base64Credentials));
-        return credentials.split(":", 2);
+        try {
+            String base64Credentials = authHeader.substring("Basic ".length()).trim();
+            byte[] credDecoded = Base64.getDecoder().decode(base64Credentials);
+            String credentials = new String(credDecoded, StandardCharsets.UTF_8);
+            return credentials.split(":", 2);
+        } catch (Exception e) {
+            return new String[] { "", "" };
+        }
     }
     
     private static class ErrorResponse {
@@ -411,10 +631,40 @@ public class Application {
         public String getCode() { return code; }
     }
     
-    private static class PasswordChangeRequest {
+    private static class LoginRequest {
+        private String username;
         private String password;
+        private boolean rememberMe;
         
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
+        public boolean isRememberMe() { return rememberMe; }
+        public void setRememberMe(boolean rememberMe) { this.rememberMe = rememberMe; }
+    }
+    
+    private static class PasswordChangeRequest {
+        private String currentPassword;
+        private String newPassword;
+        
+        public String getCurrentPassword() { return currentPassword; }
+        public void setCurrentPassword(String currentPassword) { this.currentPassword = currentPassword; }
+        public String getNewPassword() { return newPassword; }
+        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
+    }
+
+    // 用户注册请求类
+    private static class RegisterUserRequest {
+        private String username;
+        private String password;
+        private boolean rememberMe;
+        
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public boolean isRememberMe() { return rememberMe; }
+        public void setRememberMe(boolean rememberMe) { this.rememberMe = rememberMe; }
     }
 }

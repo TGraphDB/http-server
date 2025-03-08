@@ -23,10 +23,19 @@ public class Tgraph {
     }
     
     /**
+     * 获取用户数据库路径
+     */
+    private static String getUserDbPath(String username, String dbName) {
+        return TARGET_DIR + File.separator + username + File.separator + dbName;
+    }
+    
+    /**
      * 创建数据库
      */
-    public static GraphDatabaseService createDb(String dbName) throws IOException {
-        String dbPath = TARGET_DIR + "/" + dbName;
+    public static GraphDatabaseService createDb(String username, String dbName) throws IOException {
+        String dbPath = getUserDbPath(username, dbName);
+        // 确保用户目录存在
+        new File(TARGET_DIR + File.separator + username).mkdirs();
         FileUtils.deleteRecursively(new File(dbPath));
         GraphDatabaseService graphDb = new GraphDatabaseFactory()
             .newEmbeddedDatabaseBuilder(new File(dbPath))
@@ -38,8 +47,8 @@ public class Tgraph {
     /**
      * 删除数据库
      */
-    public static boolean deleteDb(String dbName) {
-        String dbPath = TARGET_DIR + "/" + dbName;
+    public static boolean deleteDb(String username, String dbName) {
+        String dbPath = getUserDbPath(username, dbName);
         try {
             FileUtils.deleteRecursively(new File(dbPath));
             return true;
@@ -52,8 +61,8 @@ public class Tgraph {
     /**
      * 启动数据库
      */
-    public static GraphDatabaseService startDb(String dbName) {
-        String dbPath = TARGET_DIR + "/" + dbName;
+    public static GraphDatabaseService startDb(String username, String dbName) {
+        String dbPath = getUserDbPath(username, dbName);
         GraphDatabaseService graphDb = new GraphDatabaseFactory()
             .newEmbeddedDatabaseBuilder(new File(dbPath))
             .newGraphDatabase();
@@ -85,8 +94,8 @@ public class Tgraph {
     /**
      * 备份数据库
      */
-    public static void backupDatabase(String dbName) throws IOException {
-        File dbDir = new File(TARGET_DIR, dbName);
+    public static void backupDatabase(String username, String dbName) throws IOException {
+        File dbDir = new File(getUserDbPath(username, dbName));
         if (!dbDir.exists()) {
             throw new IllegalArgumentException("数据库 '" + dbDir.getPath() + "' 不存在");
         }
@@ -110,7 +119,7 @@ public class Tgraph {
         // 生成备份文件名
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
         String timestamp = dateFormat.format(new Date());
-        String backupFileName = dbName.replace('/', '_').replace('\\', '_') 
+        String backupFileName = username + "_" + dbName.replace('/', '_').replace('\\', '_') 
             + "_" + timestamp + ".zip";
         File backupFile = new File(backupDir, backupFileName);
 
@@ -123,25 +132,43 @@ public class Tgraph {
     /**
      * 从备份文件恢复数据库
      */
-    public static void restoreDatabase(String backupFileName) throws IOException {
+    public static void restoreDatabase(String username, String backupFileName) throws IOException {
         File backupFile = new File(TARGET_DIR + "/backup", backupFileName);
         
         if (!backupFile.exists()) {
             throw new IllegalArgumentException("备份文件 '" + backupFile.getPath() + "' 不存在");
         }
         
-        // 提取数据库名称
-        String dbName = backupFileName.replaceAll("_\\d{8}_\\d{6}\\.zip$", "");
+        // 提取数据库名称，格式应为username_dbname_yyyyMMdd_HHmmss.zip
+        String fileNameWithoutExt = backupFileName.substring(0, backupFileName.lastIndexOf('.'));
+        String[] parts = fileNameWithoutExt.split("_");
+        if (parts.length < 4) {
+            throw new IllegalArgumentException("备份文件名格式错误，应为username_dbname_yyyyMMdd_HHmmss.zip");
+        }
+        
+        // 确认用户名匹配
+        if (!parts[0].equals(username)) {
+            throw new IllegalArgumentException("无权访问其他用户的备份文件");
+        }
+        
+        // 重建数据库名
+        String dbName = parts[1];
+        for (int i = 2; i < parts.length - 2; i++) {
+            dbName += "_" + parts[i];
+        }
+        
+        // 确保用户目录存在
+        new File(TARGET_DIR + File.separator + username).mkdirs();
         
         // 检查目标数据库目录
-        File dbDir = new File(TARGET_DIR, dbName);
+        File dbDir = new File(getUserDbPath(username, dbName));
         if (dbDir.exists()) {
             throw new IllegalStateException("目标数据库 '" + dbName + "' 已存在，请先删除或重命名");
         }
         
         // 解压备份文件
         try (ZipFile zipFile = new ZipFile(backupFile)) {
-            zipFile.extractAll(TARGET_DIR);
+            zipFile.extractAll(TARGET_DIR + File.separator + username);
         } catch (Exception e) {
             throw new IOException("恢复数据库失败: " + e.getMessage(), e);
         }

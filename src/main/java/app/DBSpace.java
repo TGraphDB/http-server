@@ -2,7 +2,9 @@ package app;
 
 import java.io.File;
 import java.io.FilenameFilter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.google.gson.Gson;
@@ -85,6 +87,122 @@ public class DBSpace {
         }
         
         return response;
+    }
+    
+    /**
+     * 获取Neo4j数据库日志文件大小统计
+     * @param username 用户名
+     * @param dbName 数据库名称
+     * @return 包含Neo4j数据库日志统计信息的Map
+     */
+    public static Map<String, Object> getDatabaseLogsSizeResponse(String username, String dbName) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // 数据库目录
+            File dbDir = new File(TARGET_DIR + File.separator + username + File.separator + dbName);
+            
+            if (!dbDir.exists()) {
+                response.put("error", "数据库目录不存在: " + dbDir.getAbsolutePath());
+                return response;
+            }
+            
+            // 查找数据库日志文件
+            File[] logFiles = dbDir.listFiles((dir, name) -> name.endsWith(".log"));
+            
+            if (logFiles == null || logFiles.length == 0) {
+                // 深度搜索日志目录
+                List<File> foundLogFiles = findLogFiles(dbDir);
+                
+                if (foundLogFiles.isEmpty()) {
+                    response.put("message", "未找到数据库日志文件");
+                    response.put("dbPath", dbDir.getAbsolutePath());
+                    return response;
+                }
+                
+                // 计算总大小
+                long totalSize = 0;
+                for (File file : foundLogFiles) {
+                    totalSize += file.length();
+                }
+                
+                // 创建返回结构
+                Map<String, Object> statistics = new HashMap<>();
+                statistics.put("count", foundLogFiles.size());
+                statistics.put("total_size", totalSize);
+                statistics.put("total_size_formatted", formatSize(totalSize));
+                
+                // 构建日志文件列表
+                List<Map<String, Object>> logFilesList = new ArrayList<>();
+                for (File file : foundLogFiles) {
+                    Map<String, Object> fileInfo = new HashMap<>();
+                    fileInfo.put("name", file.getName());
+                    fileInfo.put("path", file.getAbsolutePath().replace(dbDir.getAbsolutePath() + File.separator, ""));
+                    fileInfo.put("size", file.length());
+                    fileInfo.put("size_formatted", formatSize(file.length()));
+                    logFilesList.add(fileInfo);
+                }
+                statistics.put("files", logFilesList);
+                
+                response.put("db_logs", statistics);
+                response.put("db_path", dbDir.getAbsolutePath());
+            } else {
+                // 计算总大小
+                long totalSize = 0;
+                for (File file : logFiles) {
+                    totalSize += file.length();
+                }
+                
+                // 创建返回结构
+                Map<String, Object> statistics = new HashMap<>();
+                statistics.put("count", logFiles.length);
+                statistics.put("total_size", totalSize);
+                statistics.put("total_size_formatted", formatSize(totalSize));
+                
+                // 构建日志文件列表
+                List<Map<String, Object>> logFilesList = new ArrayList<>();
+                for (File file : logFiles) {
+                    Map<String, Object> fileInfo = new HashMap<>();
+                    fileInfo.put("name", file.getName());
+                    fileInfo.put("size", file.length());
+                    fileInfo.put("size_formatted", formatSize(file.length()));
+                    logFilesList.add(fileInfo);
+                }
+                statistics.put("files", logFilesList);
+                
+                response.put("db_logs", statistics);
+                response.put("db_path", dbDir.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            response.put("error", "无法获取数据库日志统计信息: " + e.getMessage());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * 递归查找目录中的日志文件
+     * @param directory 要搜索的目录
+     * @return 找到的日志文件列表
+     */
+    private static List<File> findLogFiles(File directory) {
+        List<File> logFiles = new ArrayList<>();
+        if (!directory.isDirectory()) {
+            return logFiles;
+        }
+        
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    logFiles.addAll(findLogFiles(file));
+                } else if (file.getName().endsWith(".log")) {
+                    logFiles.add(file);
+                }
+            }
+        }
+        
+        return logFiles;
     }
     
     /**

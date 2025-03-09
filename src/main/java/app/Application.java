@@ -25,7 +25,6 @@ import service.SystemMonitorService;
 import util.PasswordUtil;
 import service.SecurityConfig;
 import util.ServerConfig;
-import util.UserLogger;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
@@ -47,9 +46,6 @@ public class Application {
     
     
     public static void main(String[] args) {
-        // 启用用户日志记录
-        UserLogger.enableUserLogging();
-        
         // 加载配置文件
         String configPath = System.getProperty("config.path", "config/server-config.properties");
         ServerConfig.loadAndApplyConfig(configPath);
@@ -125,7 +121,6 @@ public class Application {
                         if (user != null) {
                             // 设置当前用户
                             ctx.attribute("user", user);
-                            UserLogger.setCurrentUser(username);
                             
                             // 如果密码需要更改，并且不是访问密码更改页面，则返回403
                             if (user.isPasswordChangeRequired() && 
@@ -184,9 +179,6 @@ public class Application {
                     // 将认证成功的用户保存到ctx属性中，以便后续处理
                     ctx.attribute("user", user);
                     
-                    // 设置当前线程的用户名，用于日志重定向
-                    UserLogger.setCurrentUser(user.getUsername());
-                    
                     if (user.isPasswordChangeRequired()) {
                         Map<String, Object> response = new HashMap<>();
                         response.put("password_change", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
@@ -217,28 +209,21 @@ public class Application {
             String requestId = UUID.randomUUID().toString();
             ctx.attribute("requestId", requestId);
             
+            // 尝试从cookie中获取会话ID和用户名
+            String sessionId = ctx.cookie("sessionId");
+            if (sessionId != null) {
+                String username = SessionManager.validateSession(sessionId);
+                if (username != null) {
+                    // 会话有效，设置当前用户
+                    User user = userService.getUserStatus(username);
+                    if (user != null) {
+                        ctx.attribute("user", user);
+                    }
+                } 
+            } 
+            
             // 记录请求开始时间
             ctx.attribute("requestStartTime", System.currentTimeMillis());
-            
-            // 获取当前用户并设置日志环境
-            Object userObj = ctx.attribute("user");
-            if (userObj != null && userObj instanceof User) {
-                String username = ((User) userObj).getUsername();
-                UserLogger.setCurrentUser(username);
-            } else {
-                // 尝试从cookie获取会话
-                String sessionId = ctx.cookie("sessionId");
-                if (sessionId != null) {
-                    String username = SessionManager.validateSession(sessionId);
-                    if (username != null) {
-                        User user = userService.getUserStatus(username);
-                        if (user != null) {
-                            ctx.attribute("user", user);
-                            UserLogger.setCurrentUser(username);
-                        }
-                    }
-                }
-            }
             
             // 其他请求预处理...
         });
@@ -272,7 +257,7 @@ public class Application {
         });
         
         // 用户状态API
-        app.get("/user/{username}", ctx -> {
+        app.get("/user/{username}/status", ctx -> {
             String username = ctx.pathParam("username");
             
             // 验证当前用户是否有权查看此用户信息
@@ -563,6 +548,9 @@ public class Application {
             int maxAge = rememberMe ? 7 * 24 * 60 * 60 : -1; // "记住我"设置7天，否则浏览器关闭时失效
             ctx.cookie("sessionId", sessionId, maxAge);
             
+            // 为用户初始化HTTP日志记录器
+            HttpLogger.initializeLogger(username);
+            
             // 返回登录成功的响应
             Map<String, Object> response = new HashMap<>();
             response.put("username", username);
@@ -581,6 +569,12 @@ public class Application {
         app.post("/user/logout", ctx -> {
             String sessionId = ctx.cookie("sessionId");
             if (sessionId != null) {
+                // 获取用户名以关闭日志记录器
+                String username = SessionManager.validateSession(sessionId);
+                if (username != null) {
+                    HttpLogger.closeLogger(username);
+                }
+                
                 SessionManager.invalidateSession(sessionId);
                 ctx.removeCookie("sessionId");
             }

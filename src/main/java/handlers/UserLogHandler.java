@@ -35,8 +35,7 @@ public class UserLogHandler {
         String username = ((User)userObj).getUsername();
         
         try {
-            // 日志文件路径
-            File logFile = new File(new File(LOGS_DIR, username), "console.log");
+            File logFile = new File(LOGS_DIR, username  + ".log");
             if (!logFile.exists()) {
                 ctx.status(404).json(createErrorResponse("日志文件不存在", "Error.Resource.NotFound"));
                 return;

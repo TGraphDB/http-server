@@ -36,7 +36,7 @@ public class DBSpace {
             // 获取日志文件大小
             File logFile = new File(dbPath, "messages.log");
             long logSize = logFile.exists() ? logFile.length() : 0;
-            File httpLogFile = new File(TARGET_DIR, "logs" + File.separator + username + File.separator + "console.log");
+            File httpLogFile = new File(TARGET_DIR, "logs" + File.separator + username +  ".log");
             long httpLogSize = httpLogFile.exists() ? httpLogFile.length() : 0;
 
             // 为统计结果添加单位

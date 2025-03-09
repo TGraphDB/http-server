@@ -72,63 +72,43 @@ public class UserService {
      * @return 注册结果信息：成功返回null，失败返回错误消息
      */
     public String registerUser(String username, String password) {
-        // 检查用户名格式
-        if (username == null || username.trim().isEmpty() || username.length() < 3) {
-            return "用户名不能为空且长度不能少于3个字符";
+        // 检查用户名是否存在
+        if (users.containsKey(username)) {
+            return "用户名已存在";
         }
         
-        // 检查用户名是否包含特殊字符（只允许字母、数字、下划线）
-        if (!username.matches("^[a-zA-Z0-9_]+$")) {
-            return "用户名只能包含字母、数字和下划线";
+        // 检查用户名和密码是否有效
+        if (!isValidUsername(username)) {
+            return "用户名无效，必须为5-20个字符的字母数字组合";
         }
         
-        // 保留关键词检查，防止用户注册admin、system等敏感用户名
-        if (username.equalsIgnoreCase("admin") || 
-            username.equalsIgnoreCase("administrator") || 
-            username.equalsIgnoreCase("system") || 
-            username.equalsIgnoreCase("root") ||
-            username.equals("tgraph")) {
-            return "用户名 '" + username + "' 是保留名称，不能注册";
+        if (!isValidPassword(password)) {
+            return "密码无效，必须至少包含8个字符";
         }
         
-        // 检查密码强度
-        if (password == null || password.length() < 6) {
-            return "密码不能为空且长度不能少于6个字符";
-        }
+        // 对密码进行哈希处理
+        String passwordHash = PasswordUtil.hashPassword(password);
         
-        // 检查用户是否已存在
-        synchronized (users) {
-            if (users.containsKey(username)) {
-                return "用户名 '" + username + "' 已存在";
-            }
-            
-            // 创建新用户 (默认需要修改密码为false，因为是用户自己设置的密码)
-            String passwordHash = PasswordUtil.hashPassword(password);
-            createUser(username, passwordHash, false);
-            
-            // 预创建用户日志目录
-            ensureUserLogDirectory(username);
-            
-            System.out.println("新用户注册成功: " + username);
-            return null; // 成功返回null
-        }
+        // 创建用户
+        users.put(username, new User(username, passwordHash, false));
+        
+        // 保存用户信息
+        saveUsers();
+        
+        return null; // 返回null表示成功
     }
     
-    /**
-     * 确保用户日志目录存在
-     * @param username 用户名
-     */
-    private void ensureUserLogDirectory(String username) {
-        try {
-            // 获取用户日志目录路径
-            // 注意：这里与UserLogger中的路径保持一致
-            File userLogDir = new File("target/logs", username);
-            if (!userLogDir.exists()) {
-                userLogDir.mkdirs();
-                System.out.println("为用户 '" + username + "' 创建日志目录: " + userLogDir.getAbsolutePath());
-            }
-        } catch (Exception e) {
-            System.err.println("为用户 '" + username + "' 创建日志目录时出错: " + e.getMessage());
-        }
+    // 验证用户名格式
+    private boolean isValidUsername(String username) {
+        return username != null && username.matches("^[a-zA-Z0-9]{5,20}$");
+    }
+    
+    // 验证密码格式
+    private boolean isValidPassword(String password) {
+        return password != null && password.length() >= 8;
+    }
+    
+    private void saveUsers() {
+        // Implementation of saveUsers method
     }
 } 

@@ -28,6 +28,14 @@ public class Tgraph {
     private static String getUserDbPath(String username, String dbName) {
         return TARGET_DIR + File.separator + username + File.separator + dbName;
     }
+
+    // 获取当前数据库的名字
+    public static String getCurrentDbName() {
+        String absolutePath =  graphDb.toString(); // 是绝对路径Community [D:\Desktop\study\graduation_project\source\test\target\neo4j-hello-db]
+        // 取最后一个
+        String[] parts = absolutePath.split(File.separator);
+        return parts[parts.length - 1]; // neo4j-hello-db
+    }
     
     /**
      * 创建数据库

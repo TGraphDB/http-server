@@ -25,6 +25,7 @@ import service.SystemMonitorService;
 import util.PasswordUtil;
 import service.SecurityConfig;
 import util.ServerConfig;
+import tgraph.DBSpace;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
@@ -57,7 +58,7 @@ public class Application {
         int maxThreads = ServerConfig.getInt("org.neo4j.server.webserver.maxthreads", 200);
         boolean httpLogEnabled = ServerConfig.getBoolean("org.neo4j.server.http.log.enabled", true);
         int transactionTimeout = ServerConfig.getInt("org.neo4j.server.transaction.timeout", 60);
-        // 下一步是应用maxThreads和transactionTimeout参数到代码中
+        // transactionTimeout参数for long running cypher queries
 
         // 创建Javalin应用
         Javalin app = Javalin.create(config -> {
@@ -225,7 +226,7 @@ public class Application {
             // 记录请求开始时间
             ctx.attribute("requestStartTime", System.currentTimeMillis());
             
-            // 其他请求预处理...
+            
         });
         
         // 目前只能在结束后再计算是否超时

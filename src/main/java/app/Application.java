@@ -101,9 +101,7 @@ public class Application {
                 }
                 
                 // 公共路径无需认证
-                if (ctx.path().startsWith("/user/login") || 
-                    ctx.path().startsWith("/user/logout") || 
-                    ctx.path().startsWith("/user/register") ||
+                if (
                     ctx.path().startsWith("/system/resources") ||
                     ctx.path().startsWith("/user") ||
                     ctx.path().startsWith("/databases")) {
@@ -208,7 +206,7 @@ public class Application {
         app.before(ctx -> {
             // 为每个请求生成唯一 ID
             String requestId = UUID.randomUUID().toString();
-            ctx.attribute("requestId", requestId);
+            ctx.attribute("requestId", requestId); // 将数据存储在当前请求的上下文中，以便在整个请求生命周期中共享数据
             
             // 尝试从cookie中获取会话ID和用户名
             String sessionId = ctx.cookie("sessionId");
@@ -454,7 +452,7 @@ public class Application {
         app.get("/db/data/database/{databaseName}/path", TgraphHandler::getDatabasePath);
 
         // 获取数据库状态
-        app.get("/db/data/database/status", TgraphHandler::getDatabaseStatus);
+        app.get("/db/data/database/{databaseName}/status", TgraphHandler::getDatabaseStatus);
 
         // 添加数据库空间统计API
         app.get("/databases/{dbname}/space", ctx -> {
@@ -478,12 +476,6 @@ public class Application {
         // 添加系统资源监控API
         app.get("/system/resources", ctx -> {
             Map<String, Object> resources = systemMonitorService.getSystemResources();
-            // 格式化CPU使用率为百分比字符串
-            Double procCpu = (Double)resources.get("processCpuLoad");
-            Double sysCpu = (Double)resources.get("systemCpuLoad");
-            resources.put("processCpuLoad", String.format("%.2f%%", procCpu * 100));
-            resources.put("systemCpuLoad", String.format("%.2f%%", sysCpu * 100));
-            
             ctx.status(200).json(resources);
         });
 

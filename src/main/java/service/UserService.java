@@ -5,7 +5,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Properties;
 import util.PasswordUtil;
 import util.ConfigFileStore;
-import java.io.File;
 
 public class UserService {
     private static final Map<String, User> users = new ConcurrentHashMap<>();

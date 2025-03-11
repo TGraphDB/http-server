@@ -58,6 +58,7 @@ public class Application {
         int maxThreads = ServerConfig.getInt("org.neo4j.server.webserver.maxthreads", 200);
         boolean httpLogEnabled = ServerConfig.getBoolean("org.neo4j.server.http.log.enabled", true);
         int transactionTimeout = ServerConfig.getInt("org.neo4j.server.transaction.timeout", 60);
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
         // transactionTimeout参数for long running cypher queries
 
         // 创建Javalin应用
@@ -125,7 +126,7 @@ public class Application {
                             if (user.isPasswordChangeRequired() && 
                                 !ctx.path().equals("/user/" + username + "/password")) {
                                 Map<String, Object> response = new HashMap<>();
-                                response.put("password_change", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
+                                response.put("password_change", "http://" + domainName + ":" + ctx.port() + "/user/" + username + "/password");
                                 response.put("errors", Collections.singletonList(new ErrorResponse(
                                     "用户需要修改密码。",
                                     "Neo.ClientError.Security.AuthorizationFailed"
@@ -180,7 +181,7 @@ public class Application {
                     
                     if (user.isPasswordChangeRequired()) {
                         Map<String, Object> response = new HashMap<>();
-                        response.put("password_change", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
+                        response.put("password_change", "http://" + domainName + ":" + ctx.port() + "/user/" + username + "/password");
                         response.put("errors", Collections.singletonList(new ErrorResponse(
                             "User is required to change their password.",
                             "Neo.ClientError.Security.AuthorizationFailed"
@@ -239,17 +240,17 @@ public class Application {
         app.get("/db/data/", ctx -> {
             Map<String, Object> response = new HashMap<>();
             response.put("extensions", new HashMap<>());
-            response.put("node", "http://localhost:" + ctx.port() + "/db/data/node");
-            response.put("node_index", "http://localhost:" + ctx.port() + "/db/data/index/node");
-            response.put("relationship_index", "http://localhost:" + ctx.port() + "/db/data/index/relationship");
-            response.put("extensions_info", "http://localhost:" + ctx.port() + "/db/data/ext");
-            response.put("relationship_types", "http://localhost:" + ctx.port() + "/db/data/relationship/types");
-            response.put("batch", "http://localhost:" + ctx.port() + "/db/data/batch");
-            response.put("cypher", "http://localhost:" + ctx.port() + "/db/data/cypher");
-            response.put("indexes", "http://localhost:" + ctx.port() + "/db/data/schema/index");
-            response.put("constraints", "http://localhost:" + ctx.port() + "/db/data/schema/constraint");
-            response.put("transaction", "http://localhost:" + ctx.port() + "/db/data/transaction");
-            response.put("node_labels", "http://localhost:" + ctx.port() + "/db/data/labels");
+            response.put("node", "http://" + domainName + ":" + ctx.port() + "/db/data/node");
+            response.put("node_index", "http://" + domainName + ":" + ctx.port() + "/db/data/index/node");
+            response.put("relationship_index", "http://" + domainName + ":" + ctx.port() + "/db/data/index/relationship");
+            response.put("extensions_info", "http://" + domainName + ":" + ctx.port() + "/db/data/ext");
+            response.put("relationship_types", "http://" + domainName + ":" + ctx.port() + "/db/data/relationship/types");
+            response.put("batch", "http://" + domainName + ":" + ctx.port() + "/db/data/batch");
+            response.put("cypher", "http://" + domainName + ":" + ctx.port() + "/db/data/cypher");
+            response.put("indexes", "http://" + domainName + ":" + ctx.port() + "/db/data/schema/index");
+            response.put("constraints", "http://" + domainName + ":" + ctx.port() + "/db/data/schema/constraint");
+            response.put("transaction", "http://" + domainName + ":" + ctx.port() + "/db/data/transaction");
+            response.put("node_labels", "http://" + domainName + ":" + ctx.port() + "/db/data/labels");
             response.put("neo4j_version", "2.3.12");
             
             ctx.status(200).json(response);
@@ -274,7 +275,7 @@ public class Application {
             if (user != null) {
                 Map<String, Object> response = new HashMap<>();
                 response.put("username", username);
-                response.put("password_change", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
+                response.put("password_change", "http://" + domainName + ":" + ctx.port() + "/user/" + username + "/password");
                 response.put("password_change_required", user.isPasswordChangeRequired());
                 
                 ctx.status(200)
@@ -550,7 +551,7 @@ public class Application {
             
             if (user.isPasswordChangeRequired()) {
                 response.put("password_change_required", true);
-                response.put("password_change_url", "http://localhost:" + ctx.port() + "/user/" + username + "/password");
+                response.put("password_change_url", "http://" + domainName + ":" + ctx.port() + "/user/" + username + "/password");
             } else {
                 response.put("password_change_required", false);
             }

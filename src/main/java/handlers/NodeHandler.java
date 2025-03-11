@@ -2,6 +2,7 @@ package handlers;
 
 import io.javalin.http.Context;
 import tgraph.Tgraph;
+import util.ServerConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,8 +12,6 @@ import java.util.Map;
 
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.DynamicLabel;
-import org.neo4j.graphdb.DynamicRelationshipType;
-import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.NotFoundException;
@@ -59,7 +58,8 @@ public class NodeHandler {
         }
 
         Map<String, Object> response = new HashMap<>();
-        String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeid;
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port() + "/db/data/node/" + nodeid;
         
         // 构建响应体
         response.put("extensions", new HashMap<>());
@@ -101,7 +101,8 @@ public class NodeHandler {
             try {
                 Node node = Tgraph.graphDb.getNodeById(nodeId);
                 Map<String, Object> response = new HashMap<>();
-                String baseUrl = "http://localhost:" + ctx.port() + "/db/data/node/" + nodeId;
+                String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+                String baseUrl = "http://" + domainName + ":" + ctx.port() + "/db/data/node/" + nodeId;
 
                 // 构建响应体
                 response.put("extensions", new HashMap<>());

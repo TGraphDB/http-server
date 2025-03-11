@@ -1,9 +1,12 @@
 package handlers;
 
 import io.javalin.http.Context;
-import tgraph.Tgraph;
-
+import com.google.gson.*;
 import org.neo4j.graphdb.*;
+import java.util.*;
+import tgraph.Tgraph;
+import util.ServerConfig;
+
 import org.neo4j.tooling.GlobalGraphOperations;
 
 import com.google.gson.Gson;
@@ -11,8 +14,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-
-import java.util.*;
 
 public class RelationshipHandler {
     // private GraphDatabaseService graphDb;
@@ -29,7 +30,8 @@ public class RelationshipHandler {
                 Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
                 
                 Map<String, Object> response = new HashMap<>();
-                String baseUrl = "http://localhost:" + ctx.port();
+                String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+                String baseUrl = "http://" + domainName + ":" + ctx.port();
                 
                 // 构建响应体
                 response.put("extensions", new HashMap<>());
@@ -104,7 +106,8 @@ public class RelationshipHandler {
                 }
                 
                 // 构建响应
-                String baseUrl = "http://localhost:" + ctx.port();
+                String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+                String baseUrl = "http://" + domainName + ":" + ctx.port();
                 Map<String, Object> response = new HashMap<>();
                 
                 // 添加基本信息
@@ -276,7 +279,8 @@ public class RelationshipHandler {
     // 获取所有关系（有关系和没有关系的）
     public void getAllRelationships(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
-        String baseUrl = "http://localhost:" + ctx.port();
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
         
         try (Transaction tx = Tgraph.graphDb.beginTx()) {
                 Node node = Tgraph.graphDb.getNodeById(nodeId);
@@ -312,7 +316,8 @@ public class RelationshipHandler {
     // 获取传入的关系
     public void getIncomingRelationships(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
-        String baseUrl = "http://localhost:" + ctx.port();
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
 
         try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
@@ -358,7 +363,8 @@ public class RelationshipHandler {
     // 获取传出的关系
     public void getOutgoingRelationships(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
-        String baseUrl = "http://localhost:" + ctx.port();
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
 
         try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {
@@ -406,7 +412,8 @@ public class RelationshipHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         // 例如 "LIKES&HATES"
         String typesParam = ctx.pathParam("typeString"); 
-        String baseUrl = "http://localhost:" + ctx.port();
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
     
         try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {

@@ -2,6 +2,8 @@ package handlers;
 
 import io.javalin.http.Context;
 import tgraph.Tgraph;
+import org.neo4j.tooling.GlobalGraphOperations;
+import util.ServerConfig;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,7 +17,6 @@ import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
-import org.neo4j.tooling.GlobalGraphOperations;
 
 import com.google.gson.Gson;
 
@@ -28,7 +29,8 @@ public class LabelHandler {
     // 获取具有特定标签的所有节点，支持可选的属性过滤
     public void getNodesWithLabel(Context ctx) {
         String labelName = ctx.pathParam("labelName");
-        String baseUrl = "http://localhost:" + ctx.port();
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
         
         try (Transaction tx = Tgraph.graphDb.beginTx()) {
             try {

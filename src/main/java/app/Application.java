@@ -483,6 +483,9 @@ public class Application {
         // 添加用户日志查看API
         app.get("/user/logs", userLogHandler::getUserLog);
 
+        // 添加用户列表API
+        app.get("/user/list", userLogHandler::getUsersList);
+
         // 在 Javalin.create 配置中添加
         app.before(ctx -> {
             // 为每个请求生成唯一 ID

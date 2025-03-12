@@ -2,27 +2,20 @@ package handlers;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import io.javalin.http.Context;
 import service.User;
-
-// 有问题
 
 /**
  * 用户日志处理器，提供用户查看自己日志的功能
@@ -49,59 +42,101 @@ public class UserLogHandler {
         String username = ((User)userObj).getUsername();
         
         try {
-            File logFile = new File(LOGS_DIR, username  + ".log");
+            // 检查日志目录是否存在
+            File logDir = new File(LOGS_DIR);
+            if (!logDir.exists()) {
+                logDir.mkdirs();
+                ctx.status(404).json(createErrorResponse("日志目录不存在，已创建", "Error.Resource.NotFound"));
+                return;
+            }
+            
+            // 获取日志文件
+            File logFile = new File(LOGS_DIR, username + ".log");
             if (!logFile.exists()) {
-                ctx.status(404).json(createErrorResponse("日志文件不存在", "Error.Resource.NotFound"));
+                ctx.status(404).json(createErrorResponse("日志文件不存在: " + logFile.getAbsolutePath(), "Error.Resource.NotFound"));
+                return;
+            }
+            
+            // 检查文件大小
+            long fileSize = logFile.length();
+            if (fileSize == 0) {
+                Map<String, Object> emptyResponse = new HashMap<>();
+                emptyResponse.put("username", username);
+                emptyResponse.put("lines", new ArrayList<>());
+                emptyResponse.put("message", "日志文件为空");
+                ctx.status(200).json(emptyResponse);
                 return;
             }
             
             // 获取分页参数
-            String tailParam = ctx.queryParam("tail");
             String linesParam = ctx.queryParam("lines");
-            
-            // 默认读取最后100行
-            boolean tail = tailParam == null || Boolean.parseBoolean(tailParam);
             int lines = linesParam != null ? Integer.parseInt(linesParam) : 100;
             
             List<String> logLines;
-            if (tail) {
-                // 读取文件最后N行
-                logLines = readLastNLines(logFile.toPath(), lines);
-            } else {
-                // 从头开始读取N行
-                try (Stream<String> stream = Files.lines(Paths.get(logFile.getAbsolutePath()))) {
-                    logLines = stream.limit(lines).collect(Collectors.toList());
+            try {
+                // 使用更安全的方式读取文件
+                logLines = safeReadLines(logFile, lines);
+            } catch (Exception e) {
+                // 如果安全读取失败，尝试使用备用方法
+                try {
+                    logLines = fallbackReadLines(logFile);
+                } catch (Exception ex) {
+                    ctx.status(500).json(createErrorResponse(
+                        "读取日志文件失败: " + e.getMessage() + ", 备用方法也失败: " + ex.getMessage(), 
+                        "Error.System.IOError"));
+                    return;
                 }
+            }
+            
+            // 处理尾部读取（默认）
+            String tailParam = ctx.queryParam("tail");
+            boolean tail = tailParam == null || Boolean.parseBoolean(tailParam);
+            
+            // 根据tail参数截取结果
+            if (tail && logLines.size() > lines) {
+                logLines = logLines.subList(logLines.size() - lines, logLines.size());
+            } else if (!tail && logLines.size() > lines) {
+                logLines = logLines.subList(0, lines);
             }
             
             Map<String, Object> response = new HashMap<>();
             response.put("username", username);
             response.put("lines", logLines);
+            response.put("fileSize", fileSize);
+            response.put("totalLines", logLines.size());
             ctx.status(200).json(response);
-        } catch (IOException e) {
-            ctx.status(500).json(createErrorResponse("读取日志文件失败: " + e.getMessage(), "Error.System.IOError"));
         } catch (NumberFormatException e) {
-            ctx.status(400).json(createErrorResponse("无效的参数", "Error.Request.InvalidParameter"));
+            ctx.status(400).json(createErrorResponse("无效的参数: " + e.getMessage(), "Error.Request.InvalidParameter"));
+        } catch (Exception e) {
+            ctx.status(500).json(createErrorResponse("处理请求时发生错误: " + e.getMessage(), "Error.System.UnexpectedError"));
         }
     }
     
     /**
-     * 读取文件最后N行
+     * 安全读取文件行
      */
-    private List<String> readLastNLines(java.nio.file.Path filePath, int n) throws IOException {
-        List<String> result = new ArrayList<>();
-        
-        // 读取所有行
-        List<String> allLines = Files.readAllLines(filePath);
-        if (allLines.isEmpty()) {
-            return result;
+    private List<String> safeReadLines(File file, int maxLines) throws IOException {
+        try {
+            // 尝试使用UTF-8编码读取
+            return Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            // 如果UTF-8失败，尝试使用系统默认编码
+            return Files.readAllLines(file.toPath());
         }
-        
-        // 计算起始索引
-        int startIndex = Math.max(0, allLines.size() - n);
-        
-        // 返回最后n行
-        return allLines.subList(startIndex, allLines.size());
+    }
+    
+    /**
+     * 备用读取方法，使用BufferedReader
+     */
+    private List<String> fallbackReadLines(File file) throws IOException {
+        List<String> lines = new ArrayList<>();
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                lines.add(line);
+            }
+        }
+        return lines;
     }
     
     /**
@@ -119,15 +154,12 @@ public class UserLogHandler {
     /**
      * 获取用户列表和他们的登录/请求时间
      */
-    // 都可以查看
     public void getUsersList(Context ctx) {
         Object userObj = ctx.attribute("user");
         if (userObj == null || !(userObj instanceof User)) {
             ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Error.Security.Unauthorized"));
             return;
         }
-        
-        // String username = ((User)userObj).getUsername();
         
         File logsDir = new File(LOGS_DIR);
         if (!logsDir.exists() || !logsDir.isDirectory()) {
@@ -151,12 +183,26 @@ public class UserLogHandler {
                 Date lastRequestTime = null;
                 
                 try {
-                    // 尝试从文件末尾读取最近的几条记录
-                    List<String> lastLines = readLastLines(logFile, 1000); // 读取最后1000行，足够覆盖大多数情况
+                    // 使用安全的方法读取文件
+                    List<String> fileLines = new ArrayList<>();
+                    try {
+                        fileLines = safeReadLines(logFile, 1000); // 读取最多1000行
+                    } catch (Exception e) {
+                        try {
+                            fileLines = fallbackReadLines(logFile);
+                        } catch (Exception ex) {
+                            System.err.println("无法读取文件 " + logFile.getName() + ": " + ex.getMessage());
+                            continue; // 跳过这个文件
+                        }
+                    }
+                    
+                    if (fileLines.isEmpty()) {
+                        continue; // 跳过空文件
+                    }
                     
                     // 最后一次请求时间就是日志的最后一条时间记录
-                    for (int i = lastLines.size() - 1; i >= 0 ; i--) {
-                        String line = lastLines.get(i);
+                    for (int i = fileLines.size() - 1; i >= 0; i--) {
+                        String line = fileLines.get(i);
                         Matcher matcher = TIME_PATTERN.matcher(line);
                         if (matcher.find()) {
                             try {
@@ -170,11 +216,11 @@ public class UserLogHandler {
                     }
                     
                     // 找出最后一次登录时间
-                    for (int i = lastLines.size() - 1; i >= 0 ; i--) {
-                        String line = lastLines.get(i);
+                    for (int i = fileLines.size() - 1; i >= 0; i--) {
+                        String line = fileLines.get(i);
                         if (LOGIN_PATTERN.matcher(line).find() && i > 0) {
                             // 找到登录请求，获取其时间戳
-                            String previousLine = lastLines.get(i - 1);
+                            String previousLine = fileLines.get(i - 1);
                             Matcher matcher = TIME_PATTERN.matcher(previousLine);
                             if (matcher.find()) {
                                 try {
@@ -187,9 +233,9 @@ public class UserLogHandler {
                             }
                         }
                     }
-                } catch (IOException e) {
+                } catch (Exception e) {
                     // 忽略单个文件的错误，继续处理其他文件
-                    System.err.println("读取文件失败: " + logFile.getName() + " - " + e.getMessage());
+                    System.err.println("处理文件失败: " + logFile.getName() + " - " + e.getMessage());
                 }
                 
                 // 添加用户信息到列表
@@ -225,47 +271,5 @@ public class UserLogHandler {
         timeCal.set(Calendar.DAY_OF_MONTH, fileCal.get(Calendar.DAY_OF_MONTH));
         
         return timeCal.getTime();
-    }
-    
-    /**
-     * 从文件末尾读取指定行数
-     */
-    private List<String> readLastLines(File file, int lines) throws IOException {
-        LinkedList<String> result = new LinkedList<>();
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            long fileLength = raf.length();
-            if (fileLength == 0) {
-                return result;
-            }
-            
-            // 从文件末尾开始
-            long pointer = fileLength - 1;
-            int linesRead = 0;
-            StringBuilder sb = new StringBuilder();
-            
-            // 从后向前读取文件
-            while (pointer >= 0 && linesRead < lines) {
-                raf.seek(pointer);
-                char c = (char) raf.read();
-                
-                // 找到行尾
-                if (c == '\n' && sb.length() > 0) {
-                    // 反转字符串并添加到结果中
-                    result.addFirst(sb.reverse().toString());
-                    sb = new StringBuilder();
-                    linesRead++;
-                } else {
-                    sb.append(c);
-                }
-                
-                pointer--;
-            }
-            
-            // 处理最后一行
-            if (sb.length() > 0) {
-                result.addFirst(sb.reverse().toString());
-            }
-        }
-        return result;
     }
 } 

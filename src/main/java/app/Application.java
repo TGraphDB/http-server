@@ -497,6 +497,7 @@ public class Application {
         });
 
         app.after(ctx -> {
+        
             // 获取请求 ID
             String requestId = ctx.attribute("requestId");
             // 记录请求结束

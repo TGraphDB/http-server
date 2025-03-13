@@ -123,7 +123,11 @@ public class NodeHandler {
                 // 添加元数据
                 Map<String, Object> metadata = new HashMap<>();
                 metadata.put("id", nodeId);
-                metadata.put("labels", Collections.emptyList());
+                List<String> labels = new ArrayList<>();
+                for (Label l : node.getLabels()) {
+                    labels.add(l.name());
+                }
+                metadata.put("labels", labels); 
                 response.put("metadata", metadata);
 
                 // 添加节点数据

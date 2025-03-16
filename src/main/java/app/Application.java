@@ -251,7 +251,6 @@ public class Application {
             response.put("constraints", "http://" + domainName + ":" + ctx.port() + "/db/data/schema/constraint");
             response.put("transaction", "http://" + domainName + ":" + ctx.port() + "/db/data/transaction");
             response.put("node_labels", "http://" + domainName + ":" + ctx.port() + "/db/data/labels");
-            response.put("neo4j_version", "2.3.12");
             
             ctx.status(200).json(response);
         });
@@ -478,6 +477,12 @@ public class Application {
         app.get("/system/resources", ctx -> {
             Map<String, Object> resources = systemMonitorService.getSystemResources();
             ctx.status(200).json(resources);
+        });
+
+        // 添加线程监控API
+        app.get("/system/threads", ctx -> {
+            Map<String, Object> threadInfo = systemMonitorService.getThreadInfo();
+            ctx.status(200).json(threadInfo);
         });
 
         // 添加用户日志查看API

@@ -2,11 +2,14 @@ package app;
 
 import io.javalin.Javalin;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 
 import handlers.LabelHandler;
@@ -253,6 +256,33 @@ public class Application {
             response.put("node_labels", "http://" + domainName + ":" + ctx.port() + "/db/data/labels");
             
             ctx.status(200).json(response);
+        });
+
+        // 获取当前用户的所有数据库列表
+        app.get("/db/data/databases", ctx -> { 
+            Object userObj = ctx.attribute("user");
+            String username = ((User) userObj).getUsername();
+            // 获取用户可访问的数据库列表
+            List<String> databases = new ArrayList<>();
+            
+            // 获取数据库目录
+            File dbDir = new File("target/" + username);
+            if (dbDir.exists() && dbDir.isDirectory()) {
+                // 列出所有子目录
+                File[] files = dbDir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.isDirectory()) {
+                            // 只要数据库目录存在，就添加到列表中
+                            // 这里可以根据需要添加权限检查
+                            databases.add(file.getName());
+                        }
+                    }
+                }
+            }
+            
+            // 直接返回数据库名称列表
+            ctx.status(200).json(databases);
         });
         
         // 用户状态API

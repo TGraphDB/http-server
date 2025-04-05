@@ -566,7 +566,195 @@ public class RelationshipHandler {
         }
     }
 
+    // 获取关系上单一时间点的时态属性
+    public void getTemporalProperty(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        String key = ctx.pathParam("key");
+        String timeStr = ctx.pathParam("time");
+        
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            try {
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                
+                org.neo4j.temporal.TimePoint time;
+                if ("now".equalsIgnoreCase(timeStr)) {
+                    time = org.neo4j.temporal.TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(timeStr)) {
+                    time = org.neo4j.temporal.TimePoint.INIT;
+                } else {
+                    time = new org.neo4j.temporal.TimePoint(Long.parseLong(timeStr));
+                }
+                
+                Object value = relationship.getTemporalProperty(key, time);
+                
+                tx.success();
+                ctx.status(200).json(value);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "获取时态属性失败: " + e.getMessage());
+                error.put("code", "Neo.ClientError.Property.NotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            }
+        }
+    }
 
+    // 设置关系上当前时间的时态属性
+    public void setTemporalProperty(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        String key = ctx.pathParam("key");
+        String timeStr = ctx.pathParam("time");
+        JsonElement valueElement = new Gson().fromJson(ctx.body(), JsonElement.class);
+        
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            try {
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                
+                org.neo4j.temporal.TimePoint time;
+                if ("now".equalsIgnoreCase(timeStr)) {
+                    time = org.neo4j.temporal.TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(timeStr)) {
+                    time = org.neo4j.temporal.TimePoint.INIT;
+                } else {
+                    time = new org.neo4j.temporal.TimePoint(Long.parseLong(timeStr));
+                }
+                
+                // 转换属性值
+                Object value = convertJsonElementToPropertyValue(valueElement);
+                
+                relationship.setTemporalProperty(key, time, value);
+                
+                tx.success();
+                ctx.status(204);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "设置时态属性失败: " + e.getMessage());
+                error.put("code", "Neo.ClientError.Property.Invalid");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(400).json(errorResponse);
+            }
+        }
+    }
+
+    // 设置关系上时间范围内的时态属性
+    public void setTemporalPropertyRange(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        String key = ctx.pathParam("key");
+        String startTimeStr = ctx.pathParam("startTime");
+        String endTimeStr = ctx.pathParam("endTime");
+        JsonElement valueElement = new Gson().fromJson(ctx.body(), JsonElement.class);
+        
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            try {
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                
+                // 解析开始时间
+                org.neo4j.temporal.TimePoint startTime;
+                if ("now".equalsIgnoreCase(startTimeStr)) {
+                    startTime = org.neo4j.temporal.TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(startTimeStr)) {
+                    startTime = org.neo4j.temporal.TimePoint.INIT;
+                } else {
+                    startTime = new org.neo4j.temporal.TimePoint(Long.parseLong(startTimeStr));
+                }
+                
+                // 解析结束时间
+                org.neo4j.temporal.TimePoint endTime;
+                if ("now".equalsIgnoreCase(endTimeStr)) {
+                    endTime = org.neo4j.temporal.TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(endTimeStr)) {
+                    endTime = org.neo4j.temporal.TimePoint.INIT;
+                } else {
+                    endTime = new org.neo4j.temporal.TimePoint(Long.parseLong(endTimeStr));
+                }
+                
+                // 转换属性值
+                Object value = convertJsonElementToPropertyValue(valueElement);
+                
+                relationship.setTemporalProperty(key, startTime, endTime, value);
+                
+                tx.success();
+                ctx.status(204);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "设置时态属性范围失败: " + e.getMessage());
+                error.put("code", "Neo.ClientError.Property.Invalid");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(400).json(errorResponse);
+            }
+        }
+    }
+
+    // 删除关系上某个时态属性
+    public void deleteTemporalProperty(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        String key = ctx.pathParam("key");
+        
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            try {
+                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                
+                relationship.removeTemporalProperty(key);
+                
+                tx.success();
+                ctx.status(204);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "删除时态属性失败: " + e.getMessage());
+                error.put("code", "Neo.ClientError.Property.NotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(400).json(errorResponse);
+            }
+        }
+    }
 
     // 辅助方法用于从URL中提取节点ID
     private static long extractNodeIdFromUrl(String url) {

@@ -521,6 +521,30 @@ public class Application {
         // 添加用户列表API
         app.get("/user/list", userLogHandler::getUsersList);
 
+        // 获取节点上单一时间点的时态属性
+        app.get("/db/data/node/{id}/temporal/{key}/{time}", nodeHandler::getTemporalProperty);
+
+        // 设置节点上当前时间的时态属性
+        app.put("/db/data/node/{id}/temporal/{key}/{time}", nodeHandler::setTemporalProperty);
+
+        // 设置节点上时间范围内的时态属性
+        app.put("/db/data/node/{id}/temporal/{key}/{startTime}/{endTime}", nodeHandler::setTemporalPropertyRange);
+
+        // 删除节点上某个时态属性
+        app.delete("/db/data/node/{id}/temporal/{key}", nodeHandler::deleteTemporalProperty);
+
+        // 获取关系上单一时间点的时态属性
+        app.get("/db/data/relationship/{id}/temporal/{key}/{time}", relationshipHandler::getTemporalProperty);
+
+        // 设置关系上当前时间的时态属性
+        app.put("/db/data/relationship/{id}/temporal/{key}/{time}", relationshipHandler::setTemporalProperty);
+
+        // 设置关系上时间范围内的时态属性
+        app.put("/db/data/relationship/{id}/temporal/{key}/{startTime}/{endTime}", relationshipHandler::setTemporalPropertyRange);
+
+        // 删除关系上某个时态属性
+        app.delete("/db/data/relationship/{id}/temporal/{key}", relationshipHandler::deleteTemporalProperty);
+
         // 在 Javalin.create 配置中添加
         app.before(ctx -> {
             // 为每个请求生成唯一 ID

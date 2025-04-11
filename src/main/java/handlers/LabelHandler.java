@@ -4,6 +4,7 @@ import io.javalin.http.Context;
 import tgraph.Tgraph;
 import org.neo4j.tooling.GlobalGraphOperations;
 import util.ServerConfig;
+import org.neo4j.graphdb.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -144,6 +145,30 @@ public class LabelHandler {
             
             tx.success();
             ctx.status(200).json(sortedLabels);
+        }
+    }
+
+    // 获取数据库中的节点总数
+    public void getNodeCount(Context ctx) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
+            long count = 0;
+            for (Node node : ggo.getAllNodes()) {
+                count++;
+            }
+            ctx.status(200).json(count);
+        }
+    }
+
+    // 获取数据库中的关系总数
+    public void getRelationshipCount(Context ctx) {
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
+            long count = 0;
+            for (Relationship relationship : ggo.getAllRelationships()) {
+                count++;
+            }
+            ctx.status(200).json(count);
         }
     }
 }

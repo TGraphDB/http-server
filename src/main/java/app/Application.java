@@ -514,6 +514,12 @@ public class Application {
             Map<String, Object> threadInfo = systemMonitorService.getThreadInfo();
             ctx.status(200).json(threadInfo);
         });
+        
+        // 获取数据库中的节点总数API
+        app.get("/db/data/nodes/count", labelHandler::getNodeCount);
+
+        // 获取数据库中的关系总数API
+        app.get("/db/data/relationships/count", labelHandler::getRelationshipCount);
 
         // 添加用户日志查看API
         app.get("/user/logs", userLogHandler::getUserLog);

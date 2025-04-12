@@ -359,6 +359,9 @@ public class Application {
         // 获取分页节点信息API
         app.get("/db/data/nodes/paginated", labelHandler::getPaginatedNodes);
 
+        // 获取分页关系信息API
+        app.get("/db/data/relationships/paginated", labelHandler::getPaginatedRelationships);
+
         // 创建节点API
         app.post("/db/data/node", nodeHandler::createNode);
 

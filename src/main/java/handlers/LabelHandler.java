@@ -332,4 +332,108 @@ public class LabelHandler {
             ctx.status(500).json(errorResponse);
         }
     }
+
+    //分页获取所有关系
+    public void getPaginatedRelationships(Context ctx) {
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
+        
+        // 获取分页参数
+        String pageParam = ctx.queryParam("page");
+        String sizeParam = ctx.queryParam("size");
+        
+        // 参数验证
+        if (pageParam == null || sizeParam == null) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            List<Map<String, String>> errors = new ArrayList<>();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "缺少必要的分页参数 page 和 size");
+            error.put("code", "Neo.ClientError.Request.InvalidFormat");
+            errors.add(error);
+            errorResponse.put("errors", errors);
+            ctx.status(400).json(errorResponse);
+            return;
+        }
+        
+        int page, size;
+        try {
+            page = Integer.parseInt(pageParam);
+            size = Integer.parseInt(sizeParam);
+            
+            if (page < 1 || size < 1) {
+                throw new NumberFormatException("Page and size must be positive integers");
+            }
+        } catch (NumberFormatException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            List<Map<String, String>> errors = new ArrayList<>();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "分页参数格式错误: " + e.getMessage());
+            error.put("code", "Neo.ClientError.Request.InvalidFormat");
+            errors.add(error);
+            errorResponse.put("errors", errors);
+            ctx.status(400).json(errorResponse);
+            return;
+        }
+        
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            List<Map<String, Object>> allRelationships = new ArrayList<>();
+            
+            // 使用GlobalGraphOperations获取所有关系
+            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
+            
+            // 收集所有关系数据
+            for (Relationship rel : ggo.getAllRelationships()) {
+                Map<String, Object> relData = new HashMap<>();
+                long relId = rel.getId();
+                
+                // 基本URL和引用
+                relData.put("self", baseUrl + "/db/data/relationship/" + relId);
+                relData.put("property", baseUrl + "/db/data/relationship/" + relId + "/properties/{key}");
+                relData.put("properties", baseUrl + "/db/data/relationship/" + relId + "/properties");
+                relData.put("start", baseUrl + "/db/data/node/" + rel.getStartNode().getId());
+                relData.put("end", baseUrl + "/db/data/node/" + rel.getEndNode().getId());
+                relData.put("type", rel.getType().name());
+                relData.put("extensions", new HashMap<>());
+                
+                // 关系属性
+                Map<String, Object> properties = new HashMap<>();
+                for (String key : rel.getPropertyKeys()) {
+                    properties.put(key, rel.getProperty(key));
+                }
+                relData.put("data", properties);
+                
+                // 元数据
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("id", relId);
+                metadata.put("type", rel.getType().name());
+                relData.put("metadata", metadata);
+                
+                allRelationships.add(relData);
+            }
+            
+            // 计算分页
+            int startIndex = (page - 1) * size;
+            int endIndex = Math.min(startIndex + size, allRelationships.size());
+            
+            List<Map<String, Object>> paginatedRelationships;
+            if (startIndex >= allRelationships.size()) {
+                paginatedRelationships = Collections.emptyList(); // 如果起始索引超过总数，返回空列表
+            } else {
+                paginatedRelationships = allRelationships.subList(startIndex, endIndex);
+            }
+            
+            tx.success();
+            ctx.status(200).json(paginatedRelationships);
+            
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            List<Map<String, String>> errors = new ArrayList<>();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "分页获取关系失败: " + e.getMessage());
+            error.put("code", "Neo.ClientError.Statement.ExecutionFailed");
+            errors.add(error);
+            errorResponse.put("errors", errors);
+            ctx.status(500).json(errorResponse);
+        }
+    }
 }

@@ -14,11 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.neo4j.graphdb.DynamicLabel;
-import org.neo4j.graphdb.Label;
-import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Transaction;
-
 import com.google.gson.Gson;
 
 public class LabelHandler {
@@ -169,6 +164,172 @@ public class LabelHandler {
                 count++;
             }
             ctx.status(200).json(count);
+        }
+    }
+
+    // 获取所有节点及其详细信息
+    public void getAllNodes(Context ctx) {
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
+        
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            List<Map<String, Object>> nodesList = new ArrayList<>();
+            
+            // 使用GlobalGraphOperations获取所有节点
+            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
+            
+            for (Node node : ggo.getAllNodes()) {
+                Map<String, Object> nodeData = new HashMap<>();
+                long nodeId = node.getId();
+                
+                // 基本信息
+                nodeData.put("id", nodeId);
+                nodeData.put("self", baseUrl + "/db/data/node/" + nodeId);
+                
+                // 获取标签
+                List<String> labelNames = new ArrayList<>();
+                for (Label label : node.getLabels()) {
+                    labelNames.add(label.name());
+                }
+                nodeData.put("labels", labelNames);
+                
+                // 获取属性
+                Map<String, Object> properties = new HashMap<>();
+                for (String key : node.getPropertyKeys()) {
+                    properties.put(key, node.getProperty(key));
+                }
+                nodeData.put("properties", properties);
+                
+                // 计算度数(关系数量)
+                int degree = 0;
+                for (Relationship rel : node.getRelationships()) {
+                    degree++;
+                }
+                nodeData.put("degree", degree);
+                
+                nodesList.add(nodeData);
+            }
+            
+            tx.success();
+            ctx.status(200).json(nodesList);
+            
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            List<Map<String, String>> errors = new ArrayList<>();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Error retrieving nodes: " + e.getMessage());
+            error.put("code", "Neo.ClientError.Statement.ExecutionFailed");
+            errors.add(error);
+            errorResponse.put("errors", errors);
+            ctx.status(500).json(errorResponse);
+        }
+    }
+
+
+    //获取分页节点信息
+    public void getPaginatedNodes(Context ctx) {
+        String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
+        String baseUrl = "http://" + domainName + ":" + ctx.port();
+        
+        // 获取分页参数
+        String pageParam = ctx.queryParam("page");
+        String sizeParam = ctx.queryParam("size");
+        
+        // 参数验证
+        if (pageParam == null || sizeParam == null) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            List<Map<String, String>> errors = new ArrayList<>();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "缺少必要的分页参数 page 和 size");
+            error.put("code", "Neo.ClientError.Request.InvalidFormat");
+            errors.add(error);
+            errorResponse.put("errors", errors);
+            ctx.status(400).json(errorResponse);
+            return;
+        }
+        
+        int page, size;
+        try {
+            page = Integer.parseInt(pageParam);
+            size = Integer.parseInt(sizeParam);
+            
+            if (page < 1 || size < 1) {
+                throw new NumberFormatException("Page and size must be positive integers");
+            }
+        } catch (NumberFormatException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            List<Map<String, String>> errors = new ArrayList<>();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "分页参数格式错误: " + e.getMessage());
+            error.put("code", "Neo.ClientError.Request.InvalidFormat");
+            errors.add(error);
+            errorResponse.put("errors", errors);
+            ctx.status(400).json(errorResponse);
+            return;
+        }
+        
+        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+            List<Map<String, Object>> allNodes = new ArrayList<>();
+            
+            // 使用GlobalGraphOperations获取所有节点
+            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
+            
+            // 先将所有节点收集到列表中
+            for (Node node : ggo.getAllNodes()) {
+                Map<String, Object> nodeData = new HashMap<>();
+                long nodeId = node.getId();
+                
+                // 基本信息
+                nodeData.put("id", nodeId);
+                nodeData.put("self", baseUrl + "/db/data/node/" + nodeId);
+                
+                // 获取标签
+                List<String> labelNames = new ArrayList<>();
+                for (Label label : node.getLabels()) {
+                    labelNames.add(label.name());
+                }
+                nodeData.put("labels", labelNames);
+                
+                // 获取属性
+                Map<String, Object> properties = new HashMap<>();
+                for (String key : node.getPropertyKeys()) {
+                    properties.put(key, node.getProperty(key));
+                }
+                nodeData.put("properties", properties);
+                
+                // 计算度数(关系数量)
+                int degree = 0;
+                for (Relationship rel : node.getRelationships()) {
+                    degree++;
+                }
+                nodeData.put("degree", degree);
+                
+                allNodes.add(nodeData);
+            }
+            
+            // 计算分页
+            int startIndex = (page - 1) * size;
+            int endIndex = Math.min(startIndex + size, allNodes.size());
+            
+            List<Map<String, Object>> paginatedNodes;
+            if (startIndex >= allNodes.size()) {
+                paginatedNodes = Collections.emptyList(); // 如果起始索引超过总数，返回空列表
+            } else {
+                paginatedNodes = allNodes.subList(startIndex, endIndex);
+            }
+            
+            tx.success();
+            ctx.status(200).json(paginatedNodes);
+            
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            List<Map<String, String>> errors = new ArrayList<>();
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "分页获取节点失败: " + e.getMessage());
+            error.put("code", "Neo.ClientError.Statement.ExecutionFailed");
+            errors.add(error);
+            errorResponse.put("errors", errors);
+            ctx.status(500).json(errorResponse);
         }
     }
 }

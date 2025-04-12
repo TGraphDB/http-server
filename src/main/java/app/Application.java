@@ -353,6 +353,12 @@ public class Application {
             }
         });
 
+        // 获取所有节点信息API
+        app.get("/db/data/nodes", labelHandler::getAllNodes);
+
+        // 获取分页节点信息API
+        app.get("/db/data/nodes/paginated", labelHandler::getPaginatedNodes);
+
         // 创建节点API
         app.post("/db/data/node", nodeHandler::createNode);
 

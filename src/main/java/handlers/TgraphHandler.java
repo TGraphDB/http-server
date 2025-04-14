@@ -210,7 +210,7 @@ public class TgraphHandler {
     
     // 恢复数据库API
     public void restoreDatabase(Context ctx) {
-        String backupFileName = ctx.pathParam("backupFileName");
+        String backupFileName = ctx.pathParam("databaseName");
         String username = getCurrentUsername(ctx);
         if (username == null) {
             ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
@@ -300,5 +300,42 @@ public class TgraphHandler {
                 ctx.status(404).json(createErrorResponse("数据库 '" + databaseName + "' 不存在", "Neo.ClientError.General.DatabaseNotFound"));
             }
         }
+    }
+
+    // 返回所有备份文件的名称
+    public void getBackupFiles(Context ctx) {
+        // 验证用户是否已登录
+        String username = getCurrentUsername(ctx);
+        if (username == null) {
+            ctx.status(401).json(createErrorResponse("未授权或会话已过期", "Neo.ClientError.Security.Unauthorized"));
+            return;
+        }
+        
+        // 获取备份目录
+        File backupDir = new File("target" + File.separator + "backup");
+        
+        // 检查目录是否存在
+        if (!backupDir.exists() || !backupDir.isDirectory()) {
+            // 如果备份目录不存在，创建它
+            backupDir.mkdirs();
+            ctx.status(200).json(new ArrayList<>());
+            return;
+        }
+        
+        // 获取所有文件
+        File[] files = backupDir.listFiles();
+        List<String> backupFiles = new ArrayList<>();
+        
+        // 将所有文件名添加到列表中
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile()) {
+                    backupFiles.add(file.getName());
+                }
+            }
+        }
+        
+        // 返回文件名列表
+        ctx.status(200).json(backupFiles);
     }
 }

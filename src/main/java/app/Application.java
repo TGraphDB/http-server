@@ -487,6 +487,9 @@ public class Application {
         // 恢复数据库
         app.post("/db/data/database/{databaseName}/restore", TgraphHandler::restoreDatabase);
 
+        // 返回所有备份文件的名称
+        app.get("/db/data/database/backup", TgraphHandler::getBackupFiles);
+
         // 获取数据库路径
         app.get("/db/data/database/{databaseName}/path", TgraphHandler::getDatabasePath);
 

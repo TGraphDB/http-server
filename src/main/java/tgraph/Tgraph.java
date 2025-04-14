@@ -171,6 +171,10 @@ public class Tgraph {
         // 检查目标数据库目录
         File dbDir = new File(getUserDbPath(username, dbName));
         if (dbDir.exists()) {
+            FileUtils.deleteRecursively(dbDir);
+            System.out.println("已删除原数据库文件夹: " + dbDir.getPath());
+        }
+        if (dbDir.exists()) {
             throw new IllegalStateException("目标数据库 '" + dbName + "' 已存在，请先删除或重命名");
         }
         

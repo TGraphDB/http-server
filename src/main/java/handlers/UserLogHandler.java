@@ -116,12 +116,78 @@ public class UserLogHandler {
      * 安全读取文件行
      */
     private List<String> safeReadLines(File file, int maxLines) throws IOException {
-        try {
-            // 尝试使用UTF-8编码读取
-            return Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+        List<String> lines = new ArrayList<>();
+        
+        // 如果文件大于10MB，使用高效的尾部读取方法
+        if (file.length() > 10 * 1024 * 1024) { // 10MB
+            try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "r")) {
+                // 设置缓冲区大小，尝试读取足够多的行但不会占用太多内存
+                final int BUFFER_SIZE = 8192;
+                StringBuilder sb = new StringBuilder();
+                byte[] buf = new byte[BUFFER_SIZE];
+                
+                // 从文件末尾开始向前读取
+                long fileLength = raf.length();
+                long pos = fileLength - 1;
+                int linesCount = 0;
+                
+                // 当还有内容可读并且未达到所需行数
+                while (pos > 0 && linesCount < maxLines) {
+                    long readSize = Math.min(BUFFER_SIZE, pos + 1);
+                    pos -= readSize;
+                    raf.seek(pos);
+                    int bytesRead = raf.read(buf, 0, (int)readSize);
+                    
+                    if (bytesRead <= 0) break;
+                    
+                    // 处理读取的字节
+                    for (int i = bytesRead - 1; i >= 0; i--) {
+                        if (buf[i] == '\n') {
+                            linesCount++;
+                            if (linesCount > maxLines) break;
+                        }
+                    }
+                }
+                
+                // 重新从确定的位置开始读取
+                raf.seek(Math.max(0, pos));
+                String line;
+                try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(raf.getFD())))) {
+                    int count = 0;
+                    while ((line = br.readLine()) != null && count < maxLines) {
+                        lines.add(line);
+                        count++;
+                    }
+                }
+                
+                return lines;
+            } catch (Exception e) {
+                // 如果高效方法失败，回退到传统方法但限制读取行数
+                System.err.println("高效读取方法失败: " + e.getMessage() + "，尝试使用传统方法...");
+            }
+        }
+        
+        // 对于小文件或高效方法失败的情况，使用传统方法但确保只读取所需的行数
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(new java.io.FileInputStream(file), java.nio.charset.StandardCharsets.UTF_8))) {
+            String line;
+            int count = 0;
+            while ((line = reader.readLine()) != null && count < maxLines) {
+                lines.add(line);
+                count++;
+            }
+            return lines;
         } catch (Exception e) {
             // 如果UTF-8失败，尝试使用系统默认编码
-            return Files.readAllLines(file.toPath());
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(file))) {
+                String line;
+                int count = 0;
+                while ((line = reader.readLine()) != null && count < maxLines) {
+                    lines.add(line);
+                    count++;
+                }
+                return lines;
+            }
         }
     }
     

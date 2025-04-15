@@ -516,6 +516,8 @@ public class Application {
         });
 
         // 添加系统资源监控API
+        // 应用程序（Javalin服务）正在使用的CPU资源占总可用CPU资源的百分比
+        // 所有运行中的进程总共使用的CPU资源占总可用CPU资源的百分比
         app.get("/system/resources", ctx -> {
             Map<String, Object> resources = systemMonitorService.getSystemResources();
             ctx.status(200).json(resources);

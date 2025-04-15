@@ -91,8 +91,8 @@ public class UserService {
         // 创建用户
         users.put(username, new User(username, passwordHash, false));
         
-        // 保存用户信息
-        saveUsers();
+        // 保存用户信息到配置文件
+        ConfigFileStore.saveUserCredentials(username, passwordHash, false);
         
         return null; // 返回null表示成功
     }
@@ -108,6 +108,7 @@ public class UserService {
     }
     
     private void saveUsers() {
-        // Implementation of saveUsers method
+        // 该方法现在没有实际作用，保存操作已经在registerUser方法中直接调用ConfigFileStore.saveUserCredentials
+        // 可以考虑删除此方法或在需要批量保存用户时实现
     }
 } 

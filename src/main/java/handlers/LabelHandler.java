@@ -113,6 +113,12 @@ public class LabelHandler {
 
     // 列出所有标签
     public void getAllLabels(Context ctx) {
+        // 检查数据库是否已启动
+        if (Tgraph.graphDb == null) {
+            ctx.status(400).json("Database is not started");
+            return;
+        }
+
         try (Transaction tx = Tgraph.graphDb.beginTx()) {
             Set<String> labels = new HashSet<>();
             GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);

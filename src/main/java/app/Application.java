@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 import handlers.LabelHandler;
 import handlers.NodeHandler;
@@ -29,6 +30,7 @@ import util.PasswordUtil;
 import service.SecurityConfig;
 import util.ServerConfig;
 import tgraph.DBSpace;
+import config.PermissionConfig;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
@@ -104,104 +106,118 @@ public class Application {
                     return;
                 }
                 
-                // 公共路径无需认证
-                if (
-                    ctx.path().startsWith("/system/resources") ||
-                    ctx.path().startsWith("/user") ||
-                    ctx.path().startsWith("/databases")) {
+                // 公共路径无需认证 (例如登录、注册、系统监控等)
+                String path = ctx.path();
+                if (path.equals("/user/login") || 
+                    path.equals("/user/register") || 
+                    path.startsWith("/system/resources") || // Assuming /system/resources is public
+                    path.equals("/")) { // 根路径或其他公共路径
                     handler.handle(ctx);
                     return;
                 }
                 
-                // 尝试从cookie中获取会话ID
+                User user = null;
+                String usernameFromSession = null;
+
+                // 1. 尝试从 Session 获取用户
                 String sessionId = ctx.cookie("sessionId");
                 if (sessionId != null) {
-                    // 验证会话
-                    String username = SessionManager.validateSession(sessionId);
-                    if (username != null) {
-                        // 会话有效
-                        User user = userService.getUserStatus(username);
+                    usernameFromSession = SessionManager.validateSession(sessionId);
+                    if (usernameFromSession != null) {
+                        user = userService.getUserStatus(usernameFromSession);
                         if (user != null) {
-                            // 设置当前用户
-                            ctx.attribute("user", user);
-                            
-                            // 如果密码需要更改，并且不是访问密码更改页面，则返回403
-                            if (user.isPasswordChangeRequired() && 
-                                !ctx.path().equals("/user/" + username + "/password")) {
-                                Map<String, Object> response = new HashMap<>();
-                                response.put("password_change", "http://" + domainName + ":" + ctx.port() + "/user/" + username + "/password");
-                                response.put("errors", Collections.singletonList(new ErrorResponse(
-                                    "用户需要修改密码。",
-                                    "Neo.ClientError.Security.AuthorizationFailed"
-                                )));
-                                
-                                ctx.status(403)
-                                   .json(response);
-                                return;
-                            }
-                            
-                            handler.handle(ctx);
-                            return;
+                            ctx.attribute("user", user); // 缓存用户信息
                         }
                     }
                 }
                 
-                String authHeader = ctx.header("Authorization");
-                if (authHeader == null) {
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("errors", Collections.singletonList(new ErrorResponse(
-                        "未提供授权信息。请登录或提供认证头。",
-                        "Neo.ClientError.Security.AuthorizationFailed"
-                    )));
+                // 2. 如果 Session 无效或无 Session，尝试 Basic Auth
+                if (user == null) {
+                    String authHeader = ctx.header("Authorization");
+                    if (authHeader == null || !authHeader.startsWith("Basic ")) {
+                        // 既无有效 Session 也无 Basic Auth，要求登录
+                        ctx.status(401)
+                           .header("WWW-Authenticate", "Basic realm=\"Restricted Access\"")
+                           .json(new ErrorResponse("需要认证", "Neo.ClientError.Security.AuthorizationFailed"));
+                        return;
+                    }
                     
-                    ctx.status(401)
-                       .header("WWW-Authenticate", "None")
-                       .json(response);
-                    return;
+                    try {
+                        String[] credentials = extractCredentials(authHeader);
+                        String usernameFromAuth = credentials[0];
+                        String password = credentials[1];
+                        
+                        User potentialUser = userService.getUserStatus(usernameFromAuth);
+                        if (potentialUser == null || !PasswordUtil.checkPassword(password, potentialUser.getPasswordHash())) {
+                            ctx.status(401)
+                               .header("WWW-Authenticate", "Basic realm=\"Restricted Access\"")
+                               .json(new ErrorResponse("用户名或密码无效", "Neo.ClientError.Security.AuthorizationFailed"));
+                            return;
+                        }
+                        user = potentialUser;
+                        ctx.attribute("user", user); // 缓存用户信息
+                    } catch (Exception e) {
+                        ctx.status(401).json(new ErrorResponse("无效的 Authorization header", "Neo.ClientError.Security.AuthorizationFailed"));
+                        return;
+                    }
                 }
                 
-                try {
-                    String[] credentials = extractCredentials(authHeader);
-                    String username = credentials[0];
-                    String password = credentials[1];
-                    
-                    User user = userService.getUserStatus(username);
-                    if (user == null || !PasswordUtil.checkPassword(password, user.getPasswordHash())) {
-                        Map<String, Object> response = new HashMap<>();
-                        response.put("errors", Collections.singletonList(new ErrorResponse(
-                            "Invalid username or password.",
-                            "Neo.ClientError.Security.AuthorizationFailed"
-                        )));
-                        
-                        ctx.status(401)
-                           .header("WWW-Authenticate", "None")
-                           .json(response);
-                        return;
-                    }
-                    
-                    // 将认证成功的用户保存到ctx属性中，以便后续处理
-                    ctx.attribute("user", user);
-                    
-                    if (user.isPasswordChangeRequired()) {
-                        Map<String, Object> response = new HashMap<>();
-                        response.put("password_change", "http://" + domainName + ":" + ctx.port() + "/user/" + username + "/password");
-                        response.put("errors", Collections.singletonList(new ErrorResponse(
-                            "User is required to change their password.",
-                            "Neo.ClientError.Security.AuthorizationFailed"
-                        )));
-                        
-                        ctx.status(403)
-                           .json(response);
-                        return;
-                    }
-                    
-                    handler.handle(ctx);
-                } catch (Exception e) {
-                    ctx.status(401).json(new ErrorResponse(
-                        "Invalid authorization header.",
-                        "Neo.ClientError.Security.AuthorizationFailed"
-                    ));
+                // --- 认证成功，开始授权检查 ---
+                if (user == null) { // 理论上不应发生，但作为安全检查
+                    ctx.status(401).json(new ErrorResponse("认证失败", "Neo.ClientError.Security.AuthorizationFailed"));
+                    return;
                 }
+
+                // 检查密码是否需要更改
+                if (user.isPasswordChangeRequired() && !path.equals("/user/" + user.getUsername() + "/password")) {
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("password_change", "http://" + domainName + ":" + ctx.port() + "/user/" + user.getUsername() + "/password");
+                    response.put("errors", Collections.singletonList(new ErrorResponse("用户需要修改密码", "Neo.ClientError.Security.AuthorizationFailed")));
+                    ctx.status(403).json(response);
+                    return;
+                }
+
+                // 开始角色权限检查
+                String method = ctx.method();
+                String pathTemplate = ctx.matchedPath();
+                
+                // 特殊处理：对于 /db/data/databases 接口，直接放行（或者根据需要调整）
+                // 因为 accessManager 运行时可能还没有匹配到具体的 pathTemplate
+                if (path.equals("/db/data/databases")) { 
+                    handler.handle(ctx);
+                    return;
+                }
+
+                if (pathTemplate == null) {
+                    // 如果到这里 pathTemplate 仍然是 null，可能意味着路由未定义或匹配逻辑有问题
+                    // 出于安全考虑，可以拒绝访问或记录日志
+                    System.err.println("Warning: No matchedPath for path: " + path + ", method: " + method);
+                    ctx.status(404).json(new ErrorResponse("资源未找到或路径模板无法匹配", "Neo.ClientError.General.NotFound"));
+                    return;
+                }
+
+                String permissionKey = method + ":" + pathTemplate;
+                Set<String> allowedRoles = PermissionConfig.PERMISSIONS.get(permissionKey);
+
+                if (allowedRoles != null) { // 此路由需要特定角色
+                    List<String> userRoles = userService.getRolesByUsername(user.getUsername());
+                    boolean hasPermission = false;
+                    for (String role : userRoles) {
+                        if (allowedRoles.contains(role)) {
+                            hasPermission = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasPermission) {
+                        ctx.status(403).json(new ErrorResponse("您没有权限访问此资源: " + permissionKey, "Neo.ClientError.Security.Forbidden"));
+                        return; // 权限不足，终止
+                    }
+                }
+                // --- 授权检查结束 ---
+
+                // 认证和授权都通过，执行请求处理器
+                handler.handle(ctx);
             });
         }).start(host, port);
 
@@ -221,6 +237,10 @@ public class Application {
                     User user = userService.getUserStatus(username);
                     if (user != null) {
                         ctx.attribute("user", user);
+                        
+                        // 读取并缓存用户角色
+                        List<String> roles = userService.getRolesByUsername(username);
+                        ctx.attribute("roles", roles);
                     }
                 } 
             } 
@@ -306,6 +326,10 @@ public class Application {
                 response.put("username", username);
                 response.put("password_change", "http://" + domainName + ":" + ctx.port() + "/user/" + username + "/password");
                 response.put("password_change_required", user.isPasswordChangeRequired());
+                
+                // 添加用户角色信息
+                List<String> roles = userService.getRolesByUsername(username);
+                response.put("roles", roles);
                 
                 ctx.status(200)
                    .json(response);
@@ -628,9 +652,13 @@ public class Application {
             // 为用户初始化HTTP日志记录器
             HttpLogger.initializeLogger(username);
             
+            // 获取用户角色
+            List<String> roles = userService.getRolesByUsername(username);
+            
             // 返回登录成功的响应
             Map<String, Object> response = new HashMap<>();
             response.put("username", username);
+            response.put("roles", roles);
             
             if (user.isPasswordChangeRequired()) {
                 response.put("password_change_required", true);

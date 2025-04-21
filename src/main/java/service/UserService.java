@@ -5,6 +5,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Properties;
 import util.PasswordUtil;
 import util.ConfigFileStore;
+import util.ServerConfig;
+import java.util.List;
+import java.util.Collections;
+import java.util.Arrays;
 
 public class UserService {
     private static final Map<String, User> users = new ConcurrentHashMap<>();
@@ -110,5 +114,28 @@ public class UserService {
     private void saveUsers() {
         // 该方法现在没有实际作用，保存操作已经在registerUser方法中直接调用ConfigFileStore.saveUserCredentials
         // 可以考虑删除此方法或在需要批量保存用户时实现
+    }
+    
+    /**
+     * 获取用户的角色列表
+     * @param username 用户名
+     * @return 用户的角色列表
+     */
+    public List<String> getRolesByUsername(String username) {
+        if (username == null || username.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        // 从配置文件加载所有用户配置
+        Properties props = ConfigFileStore.loadUserCredentials();
+        
+        // 获取指定用户的角色配置
+        String rolesValue = props.getProperty(username + ".roles", "");
+        if (rolesValue.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        // 分割并返回角色列表
+        return Arrays.asList(rolesValue.split(","));
     }
 } 

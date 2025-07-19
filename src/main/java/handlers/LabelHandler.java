@@ -2,7 +2,6 @@ package handlers;
 
 import io.javalin.http.Context;
 import tgraph.Tgraph;
-import org.neo4j.tooling.GlobalGraphOperations;
 import util.ServerConfig;
 import org.neo4j.graphdb.*;
 
@@ -28,19 +27,19 @@ public class LabelHandler {
         String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
         String baseUrl = "http://" + domainName + ":" + ctx.port();
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Label label = DynamicLabel.label(labelName);
+                Label label = Label.label(labelName);
                 List<Map<String, Object>> nodes = new ArrayList<>();
                 
                 // 获取所有具有指定标签的节点
-                GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
-                Iterable<Node> labeledNodes = ggo.getAllNodesWithLabel(label);
+                ResourceIterator<Node> labeledNodes = tx.findNodes(label);
                 
                 // 检查是否有属性查询参数
                 Map<String, List<String>> queryParams = ctx.queryParamMap();
                 
-                for (Node node : labeledNodes) {
+                while (labeledNodes.hasNext()) {
+                    Node node = labeledNodes.next();
                     boolean includeNode = true;
                     
                     // 如果有查询参数，检查属性值是否匹配
@@ -95,7 +94,7 @@ public class LabelHandler {
                     }
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(nodes);
                 
             } catch (Exception e) {
@@ -119,23 +118,22 @@ public class LabelHandler {
             return;
         }
 
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             Set<String> labels = new HashSet<>();
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
             
             // 检查是否需要只返回正在使用的标签
             boolean onlyInUse = !("0".equals(ctx.queryParam("in_use")));
             
             if (onlyInUse) {
                 // 只获取正在使用的标签
-                for (Node node : ggo.getAllNodes()) {
+                for (Node node : tx.getAllNodes()) {
                     for (Label label : node.getLabels()) {
                         labels.add(label.name());
                     }
                 }
             } else {
                 // 获取所有标签（包括未使用的）
-                for (Label label : ggo.getAllLabels()) {
+                for (Label label : tx.getAllLabels()) {
                     labels.add(label.name());
                 }
             }
@@ -144,17 +142,16 @@ public class LabelHandler {
             List<String> sortedLabels = new ArrayList<>(labels);
             Collections.sort(sortedLabels);
             
-            tx.success();
+            tx.commit();
             ctx.status(200).json(sortedLabels);
         }
     }
 
     // 获取数据库中的节点总数
     public void getNodeCount(Context ctx) {
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             long count = 0;
-            for (Node node : ggo.getAllNodes()) {
+            for (Node node : tx.getAllNodes()) {
                 count++;
             }
             ctx.status(200).json(count);
@@ -163,10 +160,9 @@ public class LabelHandler {
 
     // 获取数据库中的关系总数
     public void getRelationshipCount(Context ctx) {
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             long count = 0;
-            for (Relationship relationship : ggo.getAllRelationships()) {
+            for (Relationship relationship : tx.getAllRelationships()) {
                 count++;
             }
             ctx.status(200).json(count);
@@ -178,13 +174,10 @@ public class LabelHandler {
         String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
         String baseUrl = "http://" + domainName + ":" + ctx.port();
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             List<Map<String, Object>> nodesList = new ArrayList<>();
             
-            // 使用GlobalGraphOperations获取所有节点
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
-            
-            for (Node node : ggo.getAllNodes()) {
+            for (Node node : tx.getAllNodes()) {
                 Map<String, Object> nodeData = new HashMap<>();
                 long nodeId = node.getId();
                 
@@ -216,7 +209,7 @@ public class LabelHandler {
                 nodesList.add(nodeData);
             }
             
-            tx.success();
+            tx.commit();
             ctx.status(200).json(nodesList);
             
         } catch (Exception e) {
@@ -274,14 +267,11 @@ public class LabelHandler {
             return;
         }
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             List<Map<String, Object>> allNodes = new ArrayList<>();
             
-            // 使用GlobalGraphOperations获取所有节点
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
-            
             // 先将所有节点收集到列表中
-            for (Node node : ggo.getAllNodes()) {
+            for (Node node : tx.getAllNodes()) {
                 Map<String, Object> nodeData = new HashMap<>();
                 long nodeId = node.getId();
                 
@@ -324,7 +314,7 @@ public class LabelHandler {
                 paginatedNodes = allNodes.subList(startIndex, endIndex);
             }
             
-            tx.success();
+            tx.commit();
             ctx.status(200).json(paginatedNodes);
             
         } catch (Exception e) {
@@ -381,14 +371,11 @@ public class LabelHandler {
             return;
         }
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             List<Map<String, Object>> allRelationships = new ArrayList<>();
             
-            // 使用GlobalGraphOperations获取所有关系
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
-            
             // 收集所有关系数据
-            for (Relationship rel : ggo.getAllRelationships()) {
+            for (Relationship rel : tx.getAllRelationships()) {
                 Map<String, Object> relData = new HashMap<>();
                 long relId = rel.getId();
                 
@@ -428,7 +415,7 @@ public class LabelHandler {
                 paginatedRelationships = allRelationships.subList(startIndex, endIndex);
             }
             
-            tx.success();
+            tx.commit();
             ctx.status(200).json(paginatedRelationships);
             
         } catch (Exception e) {

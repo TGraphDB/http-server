@@ -1,13 +1,18 @@
 package tgraph;
 
+import org.neo4j.dbms.api.DatabaseManagementService;
+import org.neo4j.dbms.api.DatabaseManagementServiceBuilder;
 import org.neo4j.graphdb.*;
-import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.io.fs.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.nio.file.Files;
+import java.util.Comparator;
 
 import net.lingala.zip4j.ZipFile;
 
@@ -15,7 +20,9 @@ public class Tgraph {
     // 静态全局变量，只需要一个实例
     public static final String TARGET_DIR = "target";
 
-    public static GraphDatabaseService graphDb = null;
+    //public static GraphDatabaseService graphDb = null;
+
+    public static DatabaseManagementService graphDb = null;
     
     // 私有构造函数，防止实例化
     private Tgraph() {
@@ -31,7 +38,8 @@ public class Tgraph {
 
     // 获取当前数据库的名字
     public static String getCurrentDbName() {
-        String absolutePath =  graphDb.toString(); // 是绝对路径Community [D:\Desktop\study\graduation_project\source\test\target\neo4j-hello-db]
+        // TODO: 这个获取的数据库名字永远是neo4j，后续如果要用的话，需要改成获取当前数据库的名字
+        String absolutePath =  graphDb.database("neo4j").toString(); // 是绝对路径Community [D:\Desktop\study\graduation_project\source\test\target\neo4j-hello-db]
         // 取最后一个
         String[] parts = absolutePath.split(File.separator);
         return parts[parts.length - 1]; // neo4j-hello-db
@@ -40,16 +48,28 @@ public class Tgraph {
     /**
      * 创建数据库
      */
-    public static GraphDatabaseService createDb(String username, String dbName) throws IOException {
+    public static DatabaseManagementService createDb(String username, String dbName) throws IOException {
         String dbPath = getUserDbPath(username, dbName);
         // 确保用户目录存在
         new File(TARGET_DIR + File.separator + username).mkdirs();
-        FileUtils.deleteRecursively(new File(dbPath));
-        GraphDatabaseService graphDb = new GraphDatabaseFactory()
-            .newEmbeddedDatabaseBuilder(new File(dbPath))
-            .newGraphDatabase();
+        deleteDirectoryRecursively(new File(dbPath));
+        graphDb = new DatabaseManagementServiceBuilder(new File(dbPath).toPath()).build();
         registerShutdownHook(graphDb);
         return graphDb;
+    }
+
+    private static void deleteDirectoryRecursively(File directory) throws IOException {
+        if (directory.isDirectory()) {
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    deleteDirectoryRecursively(file);
+                }
+            }
+        }
+        if (!directory.delete()) {
+            throw new IOException("无法删除文件或目录: " + directory.getAbsolutePath());
+        }
     }
 
     /**
@@ -58,7 +78,7 @@ public class Tgraph {
     public static boolean deleteDb(String username, String dbName) {
         String dbPath = getUserDbPath(username, dbName);
         try {
-            FileUtils.deleteRecursively(new File(dbPath));
+            deleteDirectoryRecursively(new File(dbPath));
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -69,11 +89,9 @@ public class Tgraph {
     /**
      * 启动数据库
      */
-    public static GraphDatabaseService startDb(String username, String dbName) {
+    public static DatabaseManagementService startDb(String username, String dbName) {
         String dbPath = getUserDbPath(username, dbName);
-        GraphDatabaseService graphDb = new GraphDatabaseFactory()
-            .newEmbeddedDatabaseBuilder(new File(dbPath))
-            .newGraphDatabase();
+        graphDb = new DatabaseManagementServiceBuilder(new File(dbPath).toPath()).build();
         registerShutdownHook(graphDb);
         return graphDb;
     }
@@ -81,7 +99,7 @@ public class Tgraph {
     /**
      * 关闭数据库
      */
-    public static void shutDown(GraphDatabaseService graphDb) {
+    public static void shutDown() {
         if (graphDb != null) {
             graphDb.shutdown();
         }
@@ -90,7 +108,7 @@ public class Tgraph {
     /**
      * 注册JVM关闭钩子
      */
-    private static void registerShutdownHook(final GraphDatabaseService graphDb) {
+    private static void registerShutdownHook(final DatabaseManagementService graphDb) {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -110,9 +128,7 @@ public class Tgraph {
 
         // 检查数据库是否正在运行
         try {
-            GraphDatabaseService graphDb = new GraphDatabaseFactory()
-                .newEmbeddedDatabaseBuilder(dbDir)
-                .newGraphDatabase();
+            DatabaseManagementService graphDb = new DatabaseManagementServiceBuilder(dbDir.toPath()).build();
             graphDb.shutdown();
         } catch (Exception e) {
             throw new IllegalStateException("数据库正在运行，无法执行备份操作", e);
@@ -171,7 +187,7 @@ public class Tgraph {
         // 检查目标数据库目录
         File dbDir = new File(getUserDbPath(username, dbName));
         if (dbDir.exists()) {
-            FileUtils.deleteRecursively(dbDir);
+            deleteDirectoryRecursively(dbDir);
             System.out.println("已删除原数据库文件夹: " + dbDir.getPath());
         }
         if (dbDir.exists()) {

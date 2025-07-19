@@ -3,10 +3,10 @@ package handlers;
 import io.javalin.http.Context;
 import org.neo4j.graphdb.*;
 import java.util.*;
+
+import org.neo4j.graphdb.temporal.TimePoint;
 import tgraph.Tgraph;
 import util.ServerConfig;
-
-import org.neo4j.tooling.GlobalGraphOperations;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -24,9 +24,9 @@ public class RelationshipHandler {
     public void getRelationship(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
                 Map<String, Object> response = new HashMap<>();
                 String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
@@ -66,7 +66,7 @@ public class RelationshipHandler {
                 errorResponse.put("errors", errors);
                 ctx.status(404).json(errorResponse);
             }
-            tx.success();
+            tx.commit();
         }
     }
     
@@ -90,11 +90,11 @@ public class RelationshipHandler {
             }
         }
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
                 // 获取起始和结束节点
-                Node startNode = Tgraph.graphDb.getNodeById(startNodeId);
-                Node endNode = Tgraph.graphDb.getNodeById(endNodeId);
+                Node startNode = tx.getNodeById(startNodeId);
+                Node endNode = tx.getNodeById(endNodeId);
                 
                 // 创建关系
                 Relationship relationship = startNode.createRelationshipTo(endNode, new DynamicRelationshipType(relationType));
@@ -132,7 +132,7 @@ public class RelationshipHandler {
                     .header("Location", baseUrl + "/db/data/relationship/" + relationship.getId())
                     .json(response);
                 
-                tx.success();
+                tx.commit();
                 
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -150,12 +150,12 @@ public class RelationshipHandler {
     public void deleteRelationship(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 relationship.delete();
                 ctx.status(204);
-                tx.success();
+                tx.commit();
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
                 List<Map<String, String>> errors = new ArrayList<>();
@@ -173,9 +173,9 @@ public class RelationshipHandler {
     public void getProperties(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
                 // 构建属性Map
                 Map<String, Object> properties = new HashMap<>();
@@ -184,7 +184,7 @@ public class RelationshipHandler {
                 }
                 
                 ctx.status(200).json(properties);
-                tx.success();
+                tx.commit();
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
                 List<Map<String, String>> errors = new ArrayList<>();
@@ -203,8 +203,8 @@ public class RelationshipHandler {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         JsonObject properties = new Gson().fromJson(ctx.body(), JsonObject.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
-            Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            Relationship relationship = tx.getRelationshipById(relationshipId);
             
             // 移除所有现有属性
             for (String key : relationship.getPropertyKeys()) {
@@ -238,7 +238,7 @@ public class RelationshipHandler {
                 }
             }
             
-            tx.success();
+            tx.commit();
             ctx.status(204);
         }
     }
@@ -248,11 +248,11 @@ public class RelationshipHandler {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
-            Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            Relationship relationship = tx.getRelationshipById(relationshipId);
             if (relationship.hasProperty(propertyKey)) {
                 Object value = relationship.getProperty(propertyKey);
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(value);
             } 
         }
@@ -264,13 +264,13 @@ public class RelationshipHandler {
         String propertyKey = ctx.pathParam("key");
         JsonElement value = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
-            Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            Relationship relationship = tx.getRelationshipById(relationshipId);
             Object propertyValue = convertJsonElementToPropertyValue(value);
                 if (propertyValue != null) {
                     relationship.setProperty(propertyKey, propertyValue);
                 }
-            tx.success();
+            tx.commit();
             ctx.status(204);
         }
     }
@@ -281,8 +281,8 @@ public class RelationshipHandler {
         String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
         String baseUrl = "http://" + domainName + ":" + ctx.port();
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+                Node node = tx.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
                 
                 for (Relationship rel : node.getRelationships()) {
@@ -307,7 +307,7 @@ public class RelationshipHandler {
                     relationships.add(relData);
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(relationships);
         }
     }
@@ -318,9 +318,9 @@ public class RelationshipHandler {
         String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
         String baseUrl = "http://" + domainName + ":" + ctx.port();
 
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
 
                 // 遍历传入(in)关系
@@ -343,7 +343,7 @@ public class RelationshipHandler {
                     relationships.add(relData);
                 }
 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(relationships);
 
             } catch (NotFoundException e) {
@@ -365,9 +365,9 @@ public class RelationshipHandler {
         String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
         String baseUrl = "http://" + domainName + ":" + ctx.port();
 
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
 
                 // 遍历传出(out)关系
@@ -390,7 +390,7 @@ public class RelationshipHandler {
                     relationships.add(relData);
                 }
 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(relationships);
 
             } catch (NotFoundException e) {
@@ -406,7 +406,7 @@ public class RelationshipHandler {
         }
     }
 
-    // 获取指定类型的关系 tx.success()是在try里，没有包含在整个transaction里
+    // 获取指定类型的关系 tx.commit()是在try里，没有包含在整个transaction里
     public void getRelationshipsByTypes(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         // 例如 "LIKES&HATES"
@@ -414,9 +414,9 @@ public class RelationshipHandler {
         String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
         String baseUrl = "http://" + domainName + ":" + ctx.port();
     
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 List<Map<String, Object>> relationships = new ArrayList<>();
     
                 // 将 typesParam 按 '&' 切分并转换成 RelationshipType[]
@@ -447,7 +447,7 @@ public class RelationshipHandler {
                     relationships.add(relData);
                 }
     
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(relationships);
     
             } catch (NotFoundException e) {
@@ -465,19 +465,18 @@ public class RelationshipHandler {
 
     // 获取关系类型
     public void getRelationshipTypes(Context ctx) {
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             // 使用 GlobalGraphOperations 获取所有关系类型
-            GlobalGraphOperations ggo = GlobalGraphOperations.at(Tgraph.graphDb);
             Set<String> typeSet = new HashSet<>();
-            for (RelationshipType type : ggo.getAllRelationshipTypes()) {
-                typeSet.add(type.name());
+            for (RelationshipType relationshipType : tx.getAllRelationshipTypes()) {
+                typeSet.add(relationshipType.name());
             }
             
             // 转换为列表并排序（可选）
             List<String> types = new ArrayList<>(typeSet);
             Collections.sort(types);
             
-            tx.success();
+            tx.commit();
             ctx.status(200).json(types);
         }
     }
@@ -486,16 +485,16 @@ public class RelationshipHandler {
     public void deleteAllProperties(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
                 // 移除所有属性
                 for (String key : relationship.getPropertyKeys()) {
                     relationship.removeProperty(key);
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
                 
             } catch (NotFoundException e) {
@@ -516,14 +515,14 @@ public class RelationshipHandler {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
                 // 检查属性是否存在
                 if (relationship.hasProperty(propertyKey)) {
                     relationship.removeProperty(propertyKey);
-                    tx.success();
+                    tx.commit();
                     ctx.status(204);
                 } else {
                     // 如果属性不存在，返回404并提供详细错误信息
@@ -572,22 +571,22 @@ public class RelationshipHandler {
         String key = ctx.pathParam("key");
         String timeStr = ctx.pathParam("time");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
-                org.neo4j.temporal.TimePoint time;
+                TimePoint time;
                 if ("now".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.NOW;
+                    time = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.INIT;
+                    time = new TimePoint(0);
                 } else {
-                    time = new org.neo4j.temporal.TimePoint(Long.parseLong(timeStr));
+                    time = new TimePoint(Long.parseLong(timeStr));
                 }
                 
                 Object value = relationship.getTemporalProperty(key, time);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(value);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -618,17 +617,17 @@ public class RelationshipHandler {
         String timeStr = ctx.pathParam("time");
         JsonElement valueElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
-                org.neo4j.temporal.TimePoint time;
+                TimePoint time;
                 if ("now".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.NOW;
+                    time = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.INIT;
+                    time = new TimePoint(0);
                 } else {
-                    time = new org.neo4j.temporal.TimePoint(Long.parseLong(timeStr));
+                    time = new TimePoint(Long.parseLong(timeStr));
                 }
                 
                 // 转换属性值
@@ -636,7 +635,7 @@ public class RelationshipHandler {
                 
                 relationship.setTemporalProperty(key, time, value);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -668,28 +667,28 @@ public class RelationshipHandler {
         String endTimeStr = ctx.pathParam("endTime");
         JsonElement valueElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
                 // 解析开始时间
-                org.neo4j.temporal.TimePoint startTime;
+                TimePoint startTime;
                 if ("now".equalsIgnoreCase(startTimeStr)) {
-                    startTime = org.neo4j.temporal.TimePoint.NOW;
+                    startTime = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(startTimeStr)) {
-                    startTime = org.neo4j.temporal.TimePoint.INIT;
+                    startTime = new TimePoint(0);
                 } else {
-                    startTime = new org.neo4j.temporal.TimePoint(Long.parseLong(startTimeStr));
+                    startTime = new TimePoint(Long.parseLong(startTimeStr));
                 }
                 
                 // 解析结束时间
-                org.neo4j.temporal.TimePoint endTime;
+                TimePoint endTime;
                 if ("now".equalsIgnoreCase(endTimeStr)) {
-                    endTime = org.neo4j.temporal.TimePoint.NOW;
+                    endTime = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(endTimeStr)) {
-                    endTime = org.neo4j.temporal.TimePoint.INIT;
+                    endTime = new TimePoint(0);
                 } else {
-                    endTime = new org.neo4j.temporal.TimePoint(Long.parseLong(endTimeStr));
+                    endTime = new TimePoint(Long.parseLong(endTimeStr));
                 }
                 
                 // 转换属性值
@@ -697,7 +696,7 @@ public class RelationshipHandler {
                 
                 relationship.setTemporalProperty(key, startTime, endTime, value);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -726,13 +725,13 @@ public class RelationshipHandler {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));
         String key = ctx.pathParam("key");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Relationship relationship = Tgraph.graphDb.getRelationshipById(relationshipId);
+                Relationship relationship = tx.getRelationshipById(relationshipId);
                 
                 relationship.removeTemporalProperty(key);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();

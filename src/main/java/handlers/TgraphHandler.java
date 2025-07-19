@@ -10,8 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import org.neo4j.dbms.api.DatabaseManagementService;
+import org.neo4j.dbms.api.DatabaseManagementServiceBuilder;
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 
 import io.javalin.http.Context;
 import tgraph.Tgraph;
@@ -177,7 +178,7 @@ public class TgraphHandler {
     // 关闭数据库
     public void shutdownDatabase(Context ctx) {
         if (Tgraph.graphDb != null) {
-            Tgraph.shutDown(Tgraph.graphDb);
+            Tgraph.shutDown();
             Tgraph.graphDb = null;
             ctx.status(200);
         } else {
@@ -282,9 +283,7 @@ public class TgraphHandler {
         
         try {
             // 尝试打开数据库
-            GraphDatabaseService graphDb = new GraphDatabaseFactory()
-                .newEmbeddedDatabaseBuilder(new File(dbDir))
-                .newGraphDatabase();
+            DatabaseManagementService graphDb = new DatabaseManagementServiceBuilder(new File(dbDir).toPath()).build();
             // 能成功打开说明数据库没有被其他进程使用（关闭状态）
             graphDb.shutdown();
             

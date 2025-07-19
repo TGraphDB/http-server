@@ -1,6 +1,7 @@
 package handlers;
 
 import io.javalin.http.Context;
+import org.neo4j.graphdb.temporal.TimePoint;
 import tgraph.Tgraph;
 import util.ServerConfig;
 
@@ -11,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.neo4j.graphdb.Direction;
-import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.NotFoundException;
@@ -46,15 +46,15 @@ public class NodeHandler {
         long nodeid = 0;
 
         // 创建节点（并设置属性）
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
-            Node node = Tgraph.graphDb.createNode();
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            Node node = tx.createNode();
             nodeid = node.getId();
             // 设置请求中的所有属性
             for (Map.Entry<String, Object> entry : properties.entrySet()) {
                 node.setProperty(entry.getKey(), entry.getValue());
             }
             
-            tx.success();
+            tx.commit();
         }
 
         Map<String, Object> response = new HashMap<>();
@@ -96,10 +96,10 @@ public class NodeHandler {
     public void getNode(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             // 通过nodeid属性查找节点
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 Map<String, Object> response = new HashMap<>();
                 String domainName = ServerConfig.getString("org.neo4j.server.domain.name", "localhost");
                 String baseUrl = "http://" + domainName + ":" + ctx.port() + "/db/data/node/" + nodeId;
@@ -150,7 +150,7 @@ public class NodeHandler {
                 ctx.status(404).json(errorResponse);
             }
 
-            tx.success();
+            tx.commit();
         }
     }
 
@@ -158,9 +158,9 @@ public class NodeHandler {
     public void deleteNode(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 检查节点是否有关系
                 if (node.hasRelationship()) {
@@ -191,7 +191,7 @@ public class NodeHandler {
                 errorResponse.put("errors", errors);
                 ctx.status(404).json(errorResponse);
             }
-            tx.success();
+            tx.commit();
         }
     }
 
@@ -201,9 +201,9 @@ public class NodeHandler {
         String propertyKey = ctx.pathParam("key");
         JsonElement value = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 使用通用转换方法处理属性值
                 Object propertyValue = convertJsonElementToPropertyValue(value);
@@ -211,7 +211,7 @@ public class NodeHandler {
                     node.setProperty(propertyKey, propertyValue);
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
                 
             } catch (NotFoundException e) {
@@ -232,9 +232,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         JsonObject properties = new Gson().fromJson(ctx.body(), JsonObject.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 移除所有现有属性
                 for (String key : node.getPropertyKeys()) {
@@ -249,7 +249,7 @@ public class NodeHandler {
                     }
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
                 
             } catch (NotFoundException e) {
@@ -269,9 +269,9 @@ public class NodeHandler {
     public void getAllProperties(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 构建属性Map
                 Map<String, Object> properties = new HashMap<>();
@@ -279,7 +279,7 @@ public class NodeHandler {
                     properties.put(key, node.getProperty(key));
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(properties);
                 
             } catch (NotFoundException e) {
@@ -300,14 +300,14 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 检查属性是否存在
                 if (node.hasProperty(propertyKey)) {
                     Object value = node.getProperty(propertyKey);
-                    tx.success();
+                    tx.commit();
                     ctx.status(200).json(value);
                 } else {
                     Map<String, Object> errorResponse = new HashMap<>();
@@ -337,16 +337,16 @@ public class NodeHandler {
     public void deleteAllProperties(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 移除所有属性
                 for (String key : node.getPropertyKeys()) {
                     node.removeProperty(key);
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
                 
             } catch (NotFoundException e) {
@@ -367,14 +367,14 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String propertyKey = ctx.pathParam("key");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 检查属性是否存在
                 if (node.hasProperty(propertyKey)) {
                     node.removeProperty(propertyKey);
-                    tx.success();
+                    tx.commit();
                     ctx.status(204);
                 } else {
                     // 如果属性不存在，返回 404
@@ -408,9 +408,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 if (labelElement.isJsonArray()) {
                     // 处理多个标签
@@ -424,7 +424,7 @@ public class NodeHandler {
                     addLabel(node, labelName);
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
                 
             } catch (NotFoundException e) {
@@ -445,9 +445,9 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         JsonElement labelElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 移除所有现有标签 （有可能没有label，要注意）
                 for (Label label : node.getLabels()) {
@@ -478,7 +478,7 @@ public class NodeHandler {
                     addLabel(node, label.getAsString());
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
                 
             } catch (NotFoundException e) {
@@ -499,17 +499,17 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String labelName = ctx.pathParam("labelName");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 创建标签对象
-                Label label = DynamicLabel.label(labelName);
+                Label label = Label.label(labelName);
                 
                 // 移除标签 (无论标签是否存在)
                 node.removeLabel(label);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
                 
             } catch (NotFoundException e) {
@@ -529,9 +529,9 @@ public class NodeHandler {
     public void getAllLabels(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 收集节点的所有标签
                 List<String> labels = new ArrayList<>();
@@ -542,7 +542,7 @@ public class NodeHandler {
                 // 对标签列表进行排序
                 Collections.sort(labels);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(labels);
                 
             } catch (NotFoundException e) {
@@ -573,9 +573,9 @@ public class NodeHandler {
             types = dirAndTypes[1];
         }
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 int degree = 0;
                 
                 // 根据不同场景计算度数
@@ -612,7 +612,7 @@ public class NodeHandler {
                     }
                 }
                 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(degree);
                 
             } catch (NotFoundException e) {
@@ -634,22 +634,22 @@ public class NodeHandler {
         String key = ctx.pathParam("key");
         String timeStr = ctx.pathParam("time");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
-                org.neo4j.temporal.TimePoint time;
+                TimePoint time;
                 if ("now".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.NOW;
+                    time = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.INIT;
+                    time = new TimePoint(0);
                 } else {
-                    time = new org.neo4j.temporal.TimePoint(Long.parseLong(timeStr));
+                    time = new TimePoint(Long.parseLong(timeStr));
                 }
                 
                 Object value = node.getTemporalProperty(key, time);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(200).json(value);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -680,17 +680,17 @@ public class NodeHandler {
         String timeStr = ctx.pathParam("time");
         JsonElement valueElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
-                org.neo4j.temporal.TimePoint time;
+                TimePoint time;
                 if ("now".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.NOW;
+                    time = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(timeStr)) {
-                    time = org.neo4j.temporal.TimePoint.INIT;
+                    time = new TimePoint(0);
                 } else {
-                    time = new org.neo4j.temporal.TimePoint(Long.parseLong(timeStr));
+                    time = new TimePoint(Long.parseLong(timeStr));
                 }
                 
                 // 转换属性值
@@ -698,7 +698,7 @@ public class NodeHandler {
                 
                 node.setTemporalProperty(key, time, value);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -730,28 +730,28 @@ public class NodeHandler {
         String endTimeStr = ctx.pathParam("endTime");
         JsonElement valueElement = new Gson().fromJson(ctx.body(), JsonElement.class);
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 
                 // 解析开始时间
-                org.neo4j.temporal.TimePoint startTime;
+                TimePoint startTime;
                 if ("now".equalsIgnoreCase(startTimeStr)) {
-                    startTime = org.neo4j.temporal.TimePoint.NOW;
+                    startTime = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(startTimeStr)) {
-                    startTime = org.neo4j.temporal.TimePoint.INIT;
+                    startTime = new TimePoint(0);
                 } else {
-                    startTime = new org.neo4j.temporal.TimePoint(Long.parseLong(startTimeStr));
+                    startTime = new TimePoint(Long.parseLong(startTimeStr));
                 }
                 
                 // 解析结束时间
-                org.neo4j.temporal.TimePoint endTime;
+                TimePoint endTime;
                 if ("now".equalsIgnoreCase(endTimeStr)) {
-                    endTime = org.neo4j.temporal.TimePoint.NOW;
+                    endTime = TimePoint.NOW;
                 } else if ("init".equalsIgnoreCase(endTimeStr)) {
-                    endTime = org.neo4j.temporal.TimePoint.INIT;
+                    endTime = new TimePoint(0);
                 } else {
-                    endTime = new org.neo4j.temporal.TimePoint(Long.parseLong(endTimeStr));
+                    endTime = new TimePoint(Long.parseLong(endTimeStr));
                 }
                 
                 // 转换属性值
@@ -759,7 +759,7 @@ public class NodeHandler {
                 
                 node.setTemporalProperty(key, startTime, endTime, value);
                 
-                tx.success();
+                tx.commit();
                 ctx.status(204);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -788,11 +788,11 @@ public class NodeHandler {
         long nodeId = Long.parseLong(ctx.pathParam("id"));
         String key = ctx.pathParam("key");
         
-        try (Transaction tx = Tgraph.graphDb.beginTx()) {
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
             try {
-                Node node = Tgraph.graphDb.getNodeById(nodeId);
+                Node node = tx.getNodeById(nodeId);
                 node.removeTemporalProperty(key);
-                tx.success();
+                tx.commit();
                 ctx.status(204);
             } catch (NotFoundException e) {
                 Map<String, Object> errorResponse = new HashMap<>();
@@ -827,7 +827,7 @@ public class NodeHandler {
         }
         
         // 添加有效的标签
-        node.addLabel(DynamicLabel.label(labelName));
+        node.addLabel(Label.label(labelName));
     }
 
     // Dynamic RelationshipType implementation

@@ -52,7 +52,7 @@ public class Tgraph {
         String dbPath = getUserDbPath(username, dbName);
         // 确保用户目录存在
         new File(TARGET_DIR + File.separator + username).mkdirs();
-        deleteDirectoryRecursively(new File(dbPath));
+        // deleteDirectoryRecursively(new File(dbPath));
         graphDb = new DatabaseManagementServiceBuilder(new File(dbPath).toPath()).build();
         registerShutdownHook(graphDb);
         return graphDb;

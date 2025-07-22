@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class TestTemporalProperty {
-    private static final String DB_PATH = "target/tgraph-db-test";
+    private static final String DB_PATH = "target/tgraph/tgraph-db-test";
 
     public static DatabaseManagementService graphDb;
 
@@ -77,7 +77,7 @@ public class TestTemporalProperty {
                     int startNodeId = Integer.parseInt(tokens[0]);
                     int endNodeId = Integer.parseInt(tokens[1]);
                     String relationType = tokens[2];
-                    // int roarUid = Integer.parseInt(tokens[3]);
+                    int roarUid = Integer.parseInt(tokens[3]);
                     int roadGrid = Integer.parseInt(tokens[4]);
                     int roadIndex = Integer.parseInt(tokens[5]);
                     roadGridIndexToCntMap.put(new Pair<>(roadGrid, roadIndex), cnt);
@@ -87,6 +87,9 @@ public class TestTemporalProperty {
 
                     cnt++;
                     Relationship relationship = startNode.createRelationshipTo(endNode, new DynamicRelationshipType(relationType));
+                    relationship.setProperty("roadUid", roarUid);
+                    relationship.setProperty("roadGrid", roadGrid);
+                    relationship.setProperty("roadIndex", roadIndex);
                 }
             }
             System.out.println("successfully imported edges");

@@ -1,9 +1,11 @@
 package app;
 
-import javafx.util.Pair;
+import org.neo4j.dbms.api.DatabaseManagementService;
+import org.neo4j.dbms.api.DatabaseManagementServiceBuilder;
 import org.neo4j.graphdb.*;
-import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.io.fs.FileUtils;
+import org.neo4j.graphdb.temporal.TimePoint;
+import javafx.util.Pair;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -15,22 +17,22 @@ import java.util.Map;
 public class TestTemporalProperty {
     private static final String DB_PATH = "target/tgraph-db-test";
 
-    public static GraphDatabaseService graphDb;
+    public static DatabaseManagementService graphDb;
 
     private static Map<Integer, Integer> nodeIdToCntMap = new HashMap<>();
     private static Map<Pair<Integer, Integer>, Integer> roadGridIndexToCntMap = new HashMap<>();
 
-    public static File NodeFile = new File( "src\\test\\java\\com\\node.csv" );
-    public static File EdgeFile = new File( "src\\test\\java\\com\\edge.csv" );
-    public static File TemporalFile = new File( "src\\test\\java\\com\\100501_100.csv" );
+    public static File NodeFile = new File( "target\\data\\node.csv" );
+    public static File EdgeFile = new File( "target\\data\\edge.csv" );
+    public static File TemporalFile = new File( "target\\data\\100501_100.csv" );
 
     public static void main( final String[] args ) throws IOException
     {
-        FileUtils.deleteRecursively( new File( DB_PATH ) );
-        graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( DB_PATH );
+        FileUtils.deleteDirectory(new File(DB_PATH).toPath());
+        graphDb = new DatabaseManagementServiceBuilder(new File( DB_PATH ).toPath()).build();
 
         // 导入节点
-        try ( Transaction tx = graphDb.beginTx() ){
+        try ( Transaction tx = graphDb.database("neo4j").beginTx() ){
             try (BufferedReader br = new BufferedReader(new FileReader(NodeFile))) {
                 String line;
                 boolean isFirstLine = true;
@@ -49,15 +51,15 @@ public class TestTemporalProperty {
                     nodeIdToCntMap.put(NodeId, cnt);
                     cnt++;
                     // System.out.println("NodeId: " + NodeId);
-                    graphDb.createNode().setProperty("id", NodeId);
+                    tx.createNode().setProperty("id", NodeId);
                 }
             }
             System.out.println("successfully imported nodes");
-            tx.success();
+            tx.commit();
         }
 
         // 导入边
-        try ( Transaction tx = graphDb.beginTx() ){
+        try ( Transaction tx = graphDb.database("neo4j").beginTx() ){
             try (BufferedReader br = new BufferedReader(new FileReader(EdgeFile))) {
                 String line;
                 boolean isFirstLine = true;
@@ -80,18 +82,18 @@ public class TestTemporalProperty {
                     int roadIndex = Integer.parseInt(tokens[5]);
                     roadGridIndexToCntMap.put(new Pair<>(roadGrid, roadIndex), cnt);
 
-                    Node startNode = graphDb.getNodeById(nodeIdToCntMap.get(startNodeId));
-                    Node endNode = graphDb.getNodeById(nodeIdToCntMap.get(endNodeId));
+                    Node startNode = tx.getNodeById(nodeIdToCntMap.get(startNodeId));
+                    Node endNode = tx.getNodeById(nodeIdToCntMap.get(endNodeId));
 
                     cnt++;
                     Relationship relationship = startNode.createRelationshipTo(endNode, new DynamicRelationshipType(relationType));
                 }
             }
             System.out.println("successfully imported edges");
-            tx.success();
+            tx.commit();
         }
         // 导入100501.csv
-        try ( Transaction tx = graphDb.beginTx() ) {
+        try ( Transaction tx = graphDb.database("neo4j").beginTx() ) {
             int cnt = 0;
             String line;
             try (BufferedReader br = new BufferedReader(new FileReader(TemporalFile))) {
@@ -107,8 +109,8 @@ public class TestTemporalProperty {
                     int congestionLevel = Integer.parseInt(parts[2]); // 拥堵程度
                     int numberOfVehicles = Integer.parseInt(parts[3]); // 链路车辆数
                     int travelTime = Integer.parseInt(parts[4]); // 旅行时间
-                    org.neo4j.temporal.TimePoint time = new org.neo4j.temporal.TimePoint(Long.parseLong(timeStr));
-                    Relationship relationship = graphDb.getRelationshipById(roadGridIndexToCntMap.get(new Pair<>(gridId, chainId)));
+                    TimePoint time = new TimePoint(Long.parseLong(timeStr));
+                    Relationship relationship = tx.getRelationshipById(roadGridIndexToCntMap.get(new Pair<>(gridId, chainId)));
                     // 设置时态属性
                     relationship.setTemporalProperty("congestionLevel", time, congestionLevel);
                     relationship.setTemporalProperty("numberOfVehicles", time, numberOfVehicles);
@@ -119,7 +121,7 @@ public class TestTemporalProperty {
                 }
             }
             System.out.println("successfully imported temporal properties");
-            tx.success();
+            tx.commit();
         }
         graphDb.shutdown();
     }

@@ -115,9 +115,9 @@ public class TestTemporalProperty {
                     TimePoint time = new TimePoint(Long.parseLong(timeStr));
                     Relationship relationship = tx.getRelationshipById(roadGridIndexToCntMap.get(new Pair<>(gridId, chainId)));
                     // 设置时态属性
-                    relationship.setTemporalProperty("congestionLevel", time, congestionLevel);
-                    relationship.setTemporalProperty("numberOfVehicles", time, numberOfVehicles);
-                    relationship.setTemporalProperty("travelTime", time, travelTime);
+                    relationship.setTemporalProperty("temp_congestionLevel", time, congestionLevel);
+                    relationship.setTemporalProperty("temp_numberOfVehicles", time, numberOfVehicles);
+                    relationship.setTemporalProperty("temp_travelTime", time, travelTime);
                     if(cnt % 100000 == 0) {
                         System.out.println("Imported " + cnt + " temporal properties");
                     }

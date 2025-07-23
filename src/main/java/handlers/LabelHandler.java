@@ -289,7 +289,9 @@ public class LabelHandler {
                 // 获取属性
                 Map<String, Object> properties = new HashMap<>();
                 for (String key : node.getPropertyKeys()) {
-                    properties.put(key, node.getProperty(key));
+                    if(!key.contains("temp_")) {
+                        properties.put(key, node.getProperty(key));
+                    } 
                 }
                 nodeData.put("properties", properties);
                 
@@ -391,8 +393,13 @@ public class LabelHandler {
                 // 关系属性
                 Map<String, Object> properties = new HashMap<>();
                 for (String key : rel.getPropertyKeys()) {
-                    properties.put(key, rel.getProperty(key));
+                    if(!key.contains("temp_")) {
+                        properties.put(key, rel.getProperty(key));
+                    }
                 }
+                // properties根据key值从大到小排序
+                
+
                 relData.put("data", properties);
                 
                 // 元数据

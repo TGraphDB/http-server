@@ -448,6 +448,12 @@ public class Application {
         // 通过ID获取关系API
         app.get("/db/data/relationship/{id}", relationshipHandler::getRelationship);
 
+        // 通过ID获取节点的所有时态属性
+        app.get("/db/data/node/{id}/temporal", nodeHandler::getAllTemporalProperties);
+
+        // 通过ID获取关系的所有时态属性
+        app.get("/db/data/relationship/{id}/temporal", relationshipHandler::getAllTemporalProperties);
+
         // 在节点上设置单个属性
         app.put("/db/data/node/{id}/properties/{key}", nodeHandler::setProperty);
 

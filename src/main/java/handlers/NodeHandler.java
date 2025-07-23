@@ -725,6 +725,36 @@ public class NodeHandler {
         }
     }
 
+    // 通过ID获取节点的所有时态属性
+    public void getAllTemporalProperties(Context ctx) {
+        long nodeId = Long.parseLong(ctx.pathParam("id"));
+        
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            try {
+                // 获取所有时态属性
+                List<String> temporalProperties = new ArrayList<>();
+                Node node = tx.getNodeById(nodeId);
+                for (String key : node.getPropertyKeys()) {
+                    if(key.contains("temp_")) {
+                        temporalProperties.add(key);
+                    }
+                }
+                
+                tx.commit();
+                ctx.status(200).json(temporalProperties);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            }
+        }
+    }
+
     // 设置节点上时间范围内的时态属性
     public void setTemporalPropertyRange(Context ctx) {
         long nodeId = Long.parseLong(ctx.pathParam("id"));

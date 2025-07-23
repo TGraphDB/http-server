@@ -664,6 +664,35 @@ public class RelationshipHandler {
         }
     }
 
+    // 通过ID获取关系的所有时态属性
+    public void getAllTemporalProperties(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            try {
+                Relationship relationship = tx.getRelationshipById(relationshipId);
+                List<String> temporalProperties = new ArrayList<>();
+                for (String key : relationship.getPropertyKeys()) {
+                    if(key.contains("temp_")) {
+                        temporalProperties.add(key);
+                    }
+                }
+                
+                tx.commit();
+                ctx.status(200).json(temporalProperties);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            }
+        }
+    }
+
     // 设置关系上时间范围内的时态属性
     public void setTemporalPropertyRange(Context ctx) {
         long relationshipId = Long.parseLong(ctx.pathParam("id"));

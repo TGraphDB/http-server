@@ -1,6 +1,8 @@
 package handlers;
 
 import io.javalin.http.Context;
+
+import org.neo4j.graphdb.temporal.TemporalRangeQuery;
 import org.neo4j.graphdb.temporal.TimePoint;
 import tgraph.Tgraph;
 import util.ServerConfig;
@@ -11,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.act.temporalProperty.query.TimePointL;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
@@ -779,6 +782,79 @@ public class NodeHandler {
                 errors.add(error);
                 errorResponse.put("errors", errors);
                 ctx.status(400).json(errorResponse);
+            }
+        }
+    }
+
+    // 获取节点上时间范围内的时态属性
+    public void getTemporalPropertyRange(Context ctx) {
+        long nodeId = Long.parseLong(ctx.pathParam("id"));
+        String key = ctx.pathParam("key");
+        String startTimeStr = ctx.pathParam("startTime");
+        String endTimeStr = ctx.pathParam("endTime");
+        
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            try {
+                Node node = tx.getNodeById(nodeId);
+                
+                // 解析开始时间
+                TimePoint startTime;
+                if ("now".equalsIgnoreCase(startTimeStr)) {
+                    startTime = TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(startTimeStr)) {
+                    startTime = new TimePoint(0);
+                } else {
+                    startTime = new TimePoint(Long.parseLong(startTimeStr));
+                }
+                
+                // 解析结束时间
+                TimePoint endTime;
+                if ("now".equalsIgnoreCase(endTimeStr)) {
+                    endTime = TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(endTimeStr)) {
+                    endTime = new TimePoint(0);
+                } else {
+                    endTime = new TimePoint(Long.parseLong(endTimeStr));
+                }
+
+                Object value = node.getTemporalProperty(key, startTime, endTime, new TemporalRangeQuery() {
+                    // Implement interface methods as required
+                    // This is an anonymous implementation of the interface
+                    Map<TimePointL, Object> temporalData = new HashMap<>();
+
+                    @Override
+                    public boolean onNewEntry(long entityId, int propertyId, TimePointL time, Object val) {
+                        // Handle new entry
+                        temporalData.put(time, val);
+                        return true;
+                    }
+
+                    @Override
+                    public Object onReturn() {
+                        return temporalData;
+                    }
+                });
+
+                tx.commit();
+                ctx.status(200).json(value);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load NODE with id " + nodeId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "获取时态属性范围失败: " + e.getMessage());
+                error.put("code", "Neo.ClientError.Property.NotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
             }
         }
     }

@@ -574,6 +574,9 @@ public class Application {
         // 设置节点上时间范围内的时态属性
         app.put("/db/data/node/{id}/temporal/{key}/{startTime}/{endTime}", nodeHandler::setTemporalPropertyRange);
 
+        // 获取节点上时间范围内的时态属性
+        app.get("/db/data/node/{id}/temporal/{key}/{startTime}/{endTime}", nodeHandler::getTemporalPropertyRange);
+
         // 删除节点上某个时态属性
         app.delete("/db/data/node/{id}/temporal/{key}", nodeHandler::deleteTemporalProperty);
 
@@ -585,6 +588,9 @@ public class Application {
 
         // 设置关系上时间范围内的时态属性
         app.put("/db/data/relationship/{id}/temporal/{key}/{startTime}/{endTime}", relationshipHandler::setTemporalPropertyRange);
+
+        // 获取关系上时间范围内的时态属性
+        app.get("/db/data/relationship/{id}/temporal/{key}/{startTime}/{endTime}", relationshipHandler::getTemporalPropertyRange);
 
         // 删除关系上某个时态属性
         app.delete("/db/data/relationship/{id}/temporal/{key}", relationshipHandler::deleteTemporalProperty);

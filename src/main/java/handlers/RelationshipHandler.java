@@ -1,9 +1,12 @@
 package handlers;
 
 import io.javalin.http.Context;
+
+import org.act.temporalProperty.query.TimePointL;
 import org.neo4j.graphdb.*;
 import java.util.*;
 
+import org.neo4j.graphdb.temporal.TemporalRangeQuery;
 import org.neo4j.graphdb.temporal.TimePoint;
 import tgraph.Tgraph;
 import util.ServerConfig;
@@ -50,7 +53,9 @@ public class RelationshipHandler {
                 // 添加关系属性数据
                 Map<String, Object> data = new HashMap<>();
                 for (String key : relationship.getPropertyKeys()) {
-                    data.put(key, relationship.getProperty(key));
+                    if(!key.contains("temp_")) {
+                        data.put(key, relationship.getProperty(key));
+                    }
                 }
                 response.put("data", data);
                 
@@ -712,6 +717,79 @@ public class RelationshipHandler {
                 List<Map<String, String>> errors = new ArrayList<>();
                 Map<String, String> error = new HashMap<>();
                 error.put("message", "设置时态属性范围失败: " + e.getMessage());
+                error.put("code", "Neo.ClientError.Property.Invalid");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(400).json(errorResponse);
+            }
+        }
+    }
+
+    // 获取关系上时间范围内的时态属性
+    public void getTemporalPropertyRange(Context ctx) {
+        long relationshipId = Long.parseLong(ctx.pathParam("id"));
+        String key = ctx.pathParam("key");
+        String startTimeStr = ctx.pathParam("startTime");
+        String endTimeStr = ctx.pathParam("endTime");
+        
+        try (Transaction tx = Tgraph.graphDb.database("neo4j").beginTx()) {
+            try {
+                Relationship relationship = tx.getRelationshipById(relationshipId);
+                
+                // 解析开始时间
+                TimePoint startTime;
+                if ("now".equalsIgnoreCase(startTimeStr)) {
+                    startTime = TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(startTimeStr)) {
+                    startTime = new TimePoint(0);
+                } else {
+                    startTime = new TimePoint(Long.parseLong(startTimeStr));
+                }
+                
+                // 解析结束时间
+                TimePoint endTime;
+                if ("now".equalsIgnoreCase(endTimeStr)) {
+                    endTime = TimePoint.NOW;
+                } else if ("init".equalsIgnoreCase(endTimeStr)) {
+                    endTime = new TimePoint(0);
+                } else {
+                    endTime = new TimePoint(Long.parseLong(endTimeStr));
+                }
+                
+                Object value = relationship.getTemporalProperty(key, startTime, endTime, new TemporalRangeQuery(){
+                    // Implement interface methods as required
+                    // This is an anonymous implementation of the interface
+                    Map<TimePointL, Object> temporalData = new HashMap<>();
+
+                    @Override
+                    public boolean onNewEntry(long entityId, int propertyId, TimePointL time, Object val) {
+                        // Handle new entry
+                        temporalData.put(time, val);
+                        return true;
+                    }
+
+                    @Override
+                    public Object onReturn() {
+                        return temporalData;
+                    }
+                });
+                
+                tx.commit();
+                ctx.status(200).json(value);
+            } catch (NotFoundException e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "Unable to load RELATIONSHIP with id " + relationshipId + ".");
+                error.put("code", "Neo.ClientError.Statement.EntityNotFound");
+                errors.add(error);
+                errorResponse.put("errors", errors);
+                ctx.status(404).json(errorResponse);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                List<Map<String, String>> errors = new ArrayList<>();
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "获取时态属性范围失败: " + e.getMessage());
                 error.put("code", "Neo.ClientError.Property.Invalid");
                 errors.add(error);
                 errorResponse.put("errors", errors);

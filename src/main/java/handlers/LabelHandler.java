@@ -397,9 +397,6 @@ public class LabelHandler {
                         properties.put(key, rel.getProperty(key));
                     }
                 }
-                // properties根据key值从大到小排序
-                
-
                 relData.put("data", properties);
                 
                 // 元数据

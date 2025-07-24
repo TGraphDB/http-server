@@ -788,18 +788,29 @@ public class RelationshipHandler {
                 Object value = relationship.getTemporalProperty(key, startTime, endTime, new TemporalRangeQuery(){
                     // Implement interface methods as required
                     // This is an anonymous implementation of the interface
-                    Map<TimePointL, Object> temporalData = new HashMap<>();
+                    Map<String, Object> temporalData = new LinkedHashMap<>();  // 使用LinkedHashMap保持排序
+                    List<TimePointL> timePoints = new ArrayList<>();  // 用于收集时间点
 
                     @Override
                     public boolean onNewEntry(long entityId, int propertyId, TimePointL time, Object val) {
-                        // Handle new entry
-                        temporalData.put(time, val);
+                        // 存储时间点和值
+                        timePoints.add(time);
+                        temporalData.put(time.toString(), val);
                         return true;
                     }
 
                     @Override
                     public Object onReturn() {
-                        return temporalData;
+                        // 按时间点从小到大排序
+                        Collections.sort(timePoints, (t1, t2) -> Long.compare(t1.getTime(), t2.getTime()));
+                        
+                        // 创建一个有序的结果Map
+                        Map<String, Object> sortedResult = new LinkedHashMap<>();
+                        for (TimePointL time : timePoints) {
+                            sortedResult.put(time.toString(), temporalData.get(time.toString()));
+                        }
+                        
+                        return sortedResult;
                     }
                 });
                 

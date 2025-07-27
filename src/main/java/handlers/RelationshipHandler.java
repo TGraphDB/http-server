@@ -848,6 +848,7 @@ public class RelationshipHandler {
                 Relationship relationship = tx.getRelationshipById(relationshipId);
                 
                 relationship.removeTemporalProperty(key);
+                relationship.removeProperty(key); // 确保同时删除普通属性
                 
                 tx.commit();
                 ctx.status(204);

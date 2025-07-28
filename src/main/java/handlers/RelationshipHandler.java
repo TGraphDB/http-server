@@ -922,10 +922,19 @@ public class RelationshipHandler {
             if (primitive.isString()) {
                 return primitive.getAsString();
             } else if (primitive.isNumber()) {
-                String numStr = primitive.getAsString();
-                return numStr.indexOf('.') == -1 ? 
-                    primitive.getAsLong() : 
-                    primitive.getAsDouble();
+                // 对于时态属性，优先使用int类型以保持类型一致性
+                try {
+                    // 先尝试作为int处理（时态属性可能已经定义为INT类型）
+                    long longValue = primitive.getAsLong();
+                    if (longValue >= Integer.MIN_VALUE && longValue <= Integer.MAX_VALUE) {
+                        return (int) longValue;  // 返回int类型
+                    } else {
+                        return longValue;  // 超出int范围，返回long
+                    }
+                } catch (NumberFormatException e) {
+                    // 如果不是整数，返回double
+                    return primitive.getAsDouble();
+                }
             } else if (primitive.isBoolean()) {
                 return primitive.getAsBoolean();
             }
@@ -948,13 +957,25 @@ public class RelationshipHandler {
                     }
                     // 数字数组
                     else if (primitive.isNumber()) {
-                        if (primitive.getAsString().indexOf('.') == -1) {
-                            long[] result = new long[array.size()];
+                        try {
+                            // 优先尝试作为int数组处理
+                            int[] result = new int[array.size()];
                             for (int i = 0; i < array.size(); i++) {
-                                result[i] = array.get(i).getAsLong();
+                                long longValue = array.get(i).getAsLong();
+                                if (longValue >= Integer.MIN_VALUE && longValue <= Integer.MAX_VALUE) {
+                                    result[i] = (int) longValue;
+                                } else {
+                                    // 如果有值超出int范围，改用long数组
+                                    long[] longResult = new long[array.size()];
+                                    for (int j = 0; j < array.size(); j++) {
+                                        longResult[j] = array.get(j).getAsLong();
+                                    }
+                                    return longResult;
+                                }
                             }
                             return result;
-                        } else {
+                        } catch (NumberFormatException e) {
+                            // 如果不是整数，使用double数组
                             double[] result = new double[array.size()];
                             for (int i = 0; i < array.size(); i++) {
                                 result[i] = array.get(i).getAsDouble();

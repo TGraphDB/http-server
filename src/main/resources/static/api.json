@@ -1,0 +1,18 @@
+{
+  "name": "TGraph Database HTTP Server",
+  "version": "1.0.0",
+  "description": "RESTful API for TGraph Database",
+  "apis": [
+    "/db/data/",
+    "/db/data/databases",
+    "/user/login",
+    "/user/register",
+    "/system/resources"
+  ],
+  "features": {
+    "authentication": true,
+    "authorization": true,
+    "static_files": true,
+    "cors": true
+  }
+}

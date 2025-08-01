@@ -91,6 +91,9 @@ public class Application {
             //       .allowMethod("PUT")
             //       .allowMethod("PATCH");
 
+            // 配置静态文件服务 - 将根路径"/"映射到静态文件夹
+            config.addStaticFiles("static", io.javalin.http.staticfiles.Location.CLASSPATH);
+
             // 设置最大线程数
             config.server(() -> {
                 QueuedThreadPool threadPool = new QueuedThreadPool(maxThreads);

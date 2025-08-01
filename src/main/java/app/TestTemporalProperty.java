@@ -96,35 +96,37 @@ public class TestTemporalProperty {
             tx.commit();
         }
         // 导入100501.csv
-        try ( Transaction tx = graphDb.database("neo4j").beginTx() ) {
-            int cnt = 0;
-            String line;
-            try (BufferedReader br = new BufferedReader(new FileReader(TemporalFile))) {
-                while ((line = br.readLine()) != null) {
-                    cnt++;
-                    String[] parts = line.split(" ");
-                    // Split the second part by underscore to get two fields
-                    String[] subParts = parts[1].split("_");
-                    // Parse each part into an int and remove leading zeros
-                    String timeStr = parts[0];
-                    int gridId = Integer.parseInt(subParts[0]);
-                    int chainId = Integer.parseInt(subParts[1]);
-                    int congestionLevel = Integer.parseInt(parts[2]); // 拥堵程度
-                    int numberOfVehicles = Integer.parseInt(parts[3]); // 链路车辆数
-                    int travelTime = Integer.parseInt(parts[4]); // 旅行时间
-                    TimePoint time = new TimePoint(Long.parseLong(timeStr));
-                    Relationship relationship = tx.getRelationshipById(roadGridIndexToCntMap.get(new Pair<>(gridId, chainId)));
-                    // 设置时态属性
-                    relationship.setTemporalProperty("temp_congestionLevel", time, congestionLevel);
-                    relationship.setTemporalProperty("temp_numberOfVehicles", time, numberOfVehicles);
-                    relationship.setTemporalProperty("temp_travelTime", time, travelTime);
-                    if(cnt % 100000 == 0) {
-                        System.out.println("Imported " + cnt + " temporal properties");
+        int cnt = 0;
+        try ( BufferedReader br = new BufferedReader(new FileReader(TemporalFile)) ) {
+            String line = br.readLine();
+            while (line != null) {
+                try ( Transaction tx = graphDb.database("neo4j").beginTx()) {
+                    for (int i = 0; i < 100000; i++) {
+                        cnt++;
+                        String[] parts = line.split(" ");
+                        // Split the second part by underscore to get two fields
+                        String[] subParts = parts[1].split("_");
+                        // Parse each part into an int and remove leading zeros
+                        String timeStr = parts[0];
+                        int gridId = Integer.parseInt(subParts[0]);
+                        int chainId = Integer.parseInt(subParts[1]);
+                        int congestionLevel = Integer.parseInt(parts[2]); // 拥堵程度
+                        int numberOfVehicles = Integer.parseInt(parts[3]); // 链路车辆数
+                        int travelTime = Integer.parseInt(parts[4]); // 旅行时间
+                        TimePoint time = new TimePoint(Long.parseLong(timeStr));
+                        Relationship relationship = tx.getRelationshipById(roadGridIndexToCntMap.get(new Pair<>(gridId, chainId)));
+                        // 设置时态属性
+                        relationship.setTemporalProperty("temp_congestionLevel", time, congestionLevel);
+                        relationship.setTemporalProperty("temp_numberOfVehicles", time, numberOfVehicles);
+                        relationship.setTemporalProperty("temp_travelTime", time, travelTime);
                     }
+                    tx.commit();
+                }
+                if(cnt % 100000 == 0) {
+                    System.out.println("Imported " + cnt + " temporal properties");
                 }
             }
             System.out.println("successfully imported temporal properties");
-            tx.commit();
         }
         graphDb.shutdown();
     }

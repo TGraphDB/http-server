@@ -22,9 +22,9 @@ public class TestTemporalProperty {
     private static Map<Integer, Integer> nodeIdToCntMap = new HashMap<>();
     private static Map<Pair<Integer, Integer>, Integer> roadGridIndexToCntMap = new HashMap<>();
 
-    public static File NodeFile = new File( "target\\data\\node.csv" );
-    public static File EdgeFile = new File( "target\\data\\edge.csv" );
-    public static File TemporalFile = new File( "target\\data\\100501.csv" );
+    public static File NodeFile = new File( "target/data/node.csv" );
+    public static File EdgeFile = new File( "target/data/edge.csv" );
+    public static File TemporalFile = new File( "target/data/100501.csv" );
 
     public static void main( final String[] args ) throws IOException
     {

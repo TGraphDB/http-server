@@ -100,7 +100,7 @@ public class Application {
             });
             
             // 为Vue SPA配置 - 所有未匹配到的路径都返回index.html
-            config.addSinglePageRoot("/", "/static/index.html");
+            // config.addSinglePageRoot("/", "/static/index.html");
 
             // 设置最大线程数
             config.server(() -> {

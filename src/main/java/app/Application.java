@@ -93,6 +93,9 @@ public class Application {
 
             // 配置静态文件服务 - 将根路径"/"映射到静态文件夹
             config.addStaticFiles("static", io.javalin.http.staticfiles.Location.CLASSPATH);
+            
+            // 为Vue SPA配置 - 所有未匹配到的路径都返回index.html
+            // config.addSinglePageRoot("/", "/static/index.html");
 
             // 设置最大线程数
             config.server(() -> {

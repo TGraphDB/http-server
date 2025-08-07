@@ -663,10 +663,11 @@ public class Application {
             // 创建会话
             String sessionId = SessionManager.createSession(username, rememberMe);
             
-            // 设置会话cookie
+            // 设置会话cookie，允许跨域
             int maxAge = rememberMe ? 7 * 24 * 60 * 60 : -1; // "记住我"设置7天，否则浏览器关闭时失效
-            ctx.cookie("sessionId", sessionId, maxAge);
-            
+            ctx.cookie("sessionId", sessionId, maxAge, null, null, true, true, "None");
+            // 参数说明: name, value, maxAge, path, domain, secure, httpOnly, sameSite
+
             // 为用户初始化HTTP日志记录器
             HttpLogger.initializeLogger(username);
             
@@ -736,10 +737,11 @@ public class Application {
                     registerRequest.isRememberMe()
                 );
                 
-                // 设置会话cookie
+                // 设置会话cookie，允许跨域
                 int maxAge = registerRequest.isRememberMe() ? 7 * 24 * 60 * 60 : -1;
-                ctx.cookie("sessionId", sessionId, maxAge);
-                
+                ctx.cookie("sessionId", sessionId, maxAge, null, null, true, true, "None");
+                // 参数说明: name, value, maxAge, path, domain, secure, httpOnly, sameSite
+
                 // 返回注册成功的响应
                 Map<String, Object> response = new HashMap<>();
                 response.put("username", registerRequest.getUsername());

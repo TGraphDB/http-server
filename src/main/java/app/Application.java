@@ -582,6 +582,8 @@ public class Application {
         // 添加用户列表API
         app.get("/user/list", userLogHandler::getUsersList);
 
+        app.post("/db/data/batch", propertyHandler::batchExecuteTransaction);
+
         // 获取节点上单一时间点的时态属性
         app.get("/db/data/node/{id}/temporal/{key}/{time}", nodeHandler::getTemporalProperty);
 

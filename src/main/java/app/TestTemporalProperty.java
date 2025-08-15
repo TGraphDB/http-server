@@ -22,9 +22,9 @@ public class TestTemporalProperty {
     private static Map<Integer, Integer> nodeIdToCntMap = new HashMap<>();
     private static Map<Pair<Integer, Integer>, Integer> roadGridIndexToCntMap = new HashMap<>();
 
-    public static File NodeFile = new File( "target\\data\\node.csv" );
-    public static File EdgeFile = new File( "target\\data\\edge.csv" );
-    public static File TemporalFile = new File( "target\\data\\100501_100.csv" );
+    public static File NodeFile = new File( "target/data/node.csv" );
+    public static File EdgeFile = new File( "target/data/edge.csv" );
+    public static File TemporalFile = new File( "target/data/100501.csv" );
 
     public static void main( final String[] args ) throws IOException
     {
@@ -102,6 +102,7 @@ public class TestTemporalProperty {
             while (line != null) {
                 try ( Transaction tx = graphDb.database("neo4j").beginTx()) {
                     for (int i = 0; i < 100000; i++) {
+                        if (line == null) break;
                         cnt++;
                         String[] parts = line.split(" ");
                         // Split the second part by underscore to get two fields
@@ -119,12 +120,11 @@ public class TestTemporalProperty {
                         relationship.setTemporalProperty("temp_congestionLevel", time, congestionLevel);
                         relationship.setTemporalProperty("temp_numberOfVehicles", time, numberOfVehicles);
                         relationship.setTemporalProperty("temp_travelTime", time, travelTime);
+                        line = br.readLine();
                     }
                     tx.commit();
                 }
-                if(cnt % 100000 == 0) {
-                    System.out.println("Imported " + cnt + " temporal properties");
-                }
+                System.out.println("Imported " + cnt + " temporal properties");
             }
             System.out.println("successfully imported temporal properties");
         }

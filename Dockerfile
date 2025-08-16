@@ -22,4 +22,4 @@ RUN mvn -B compile -Dmaven.test.skip=true
 VOLUME /db/bin/tgraphdb-http-server/target
 EXPOSE 7474
 
-ENTRYPOINT mvn -B --offline compile exec:java -Dexec.mainClass=app.Application
+ENTRYPOINT /db/bin/tgraphdb-http-server/docker-entrypoint.sh

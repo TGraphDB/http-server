@@ -10,7 +10,6 @@ WORKDIR /db/bin/temporal-neo4j
 RUN git pull --ff-only && mvn -B install -Dmaven.test.skip=true -Dlicense.skip=true -Dlicensing.skip=true -Dcheckstyle.skip -Doverwrite -pl org.neo4j:neo4j-kernel -am
 
 ADD . /db/bin/tgraphdb-http-server
-
 WORKDIR /db/bin/tgraphdb-http-server
 
 RUN wget -r https://demo.tgraphdb.cn && \
@@ -22,4 +21,5 @@ RUN mvn -B compile -Dmaven.test.skip=true
 VOLUME /db/bin/tgraphdb-http-server/target
 EXPOSE 7474
 
+RUN chmod 755 /db/bin/tgraphdb-http-server/docker-entrypoint.sh
 ENTRYPOINT /db/bin/tgraphdb-http-server/docker-entrypoint.sh
